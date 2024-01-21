@@ -1,40 +1,64 @@
 # ESP-RS Development Environment Template
 
-## Introduction
 
-This template provides a development environment for ESP32 with Rust, leveraging Nix for dependency management. It's designed to streamline the setup process for Rust-based ESP32 projects, offering a robust and reproducible development environment.
+# Getting Started with the Development Environment
 
-## Contents
+Let's get your development environment up and running:
 
-- **`flake.nix`**: Configures the development environment, including toolchains and compilers necessary for ESP32 development in Rust.
-- **`embuild.nix`**: Defines the build process for the `embuild` package, a crucial component for Rust development with ESP32.
-- **`espup.nix`**: Sets up `espup`, a tool for managing ESP toolchains and dependencies.
+1. **Install Nix Package Manager**:
 
-### Features
+   - You can install the Nix package manager by either [downloading the Nix installer](https://github.com/DeterminateSystems/nix-installer/releases) or running this command:
+     ```bash
+     curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+     ```
 
-- Automated setup of Rust toolchains and ESP compilers.
-- Preconfigured build and management tools like `cargo-espflash`, `embuild`, and `espup`.
-- A reproducible development environment managed by Nix.
+On Windows Subsystem for Linux (WSL) the installer will fail and tell you what to do. Execute the command from the error message and then afterwards execute:
 
-## Getting Started
+```bash
+sudo echo "experimental-features = nix-command flakes" > '/etc/nix/nix.conf'
+```
 
-### Prerequisites
+2. **Install direnv**:
 
-- Nix Package Manager
-- Basic knowledge of Nix and Rust
+   - Download the direnv package from [here](https://direnv.net/docs/installation.html) or run the following command:
+     ```bash
+     curl -sfL https://direnv.net/install.sh | bash
+     ```
 
-### Installation
+3. **Add direnv to your shell**:
 
-1. **Clone the Repository**: Clone this repository to your local machine.
-2. **Enter the Development Shell**: Run `nix develop` in the root directory of this template to enter the Nix-managed development shell.
-3. **Start Developing**: You're now ready to start your ESP32 project with Rust!
+   - Direnv needs to [hook into your shell](https://direnv.net/docs/hook.html) to work.
+     You can do this by executing following command:
 
-## Usage
+   ```bash
+   echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc && echo 'eval "$(direnv hook bash)"' >> ~/.bashrc && eval "$SHELL"
+   ```
 
-- Use the development shell to access all the necessary tools and compilers for ESP32 development.
-- Modify and extend the Nix expressions (`flake.nix`, `embuild.nix`, `espup.nix`) as per your project needs.
+4. **Clone the Repository and Navigate**:
 
-## Support & Contribution
+   - Clone this repository and navigate to it.
+   - If you are under Windows Subystem For Linux (WSL) please clone the repository to the home folder of your Linux. Do NOT clone it onto your Windows machine!
 
-- For support, open an issue in the repository.
-- Contributions to this template are welcome. Please submit pull requests with your proposed changes.
+5. **Allow .envrc**:
+
+   - When you enter the directory, you'll receive an error message like this:
+     ```bash
+     direnv: error .envrc is blocked. Run `direnv allow` to approve its content
+     ```
+   - Execute `direnv allow` to automatically execute the shell script `.envrc` when entering the directory.
+
+6. **Build the Project**
+    - Go the nes-vcr directory and execute:
+    ```bash
+    cargo build
+    ```
+    - Or to build and flash directly execute:
+    ```
+    cargo run
+    ```
+
+7. **Open up the Documentation**
+    - To open the library documentation execute:
+    ```bash
+    cargo doc --open
+    ```
