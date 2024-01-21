@@ -24,6 +24,7 @@
             dfu-util
             cargo-generate
             cargo-espflash
+            cargo-watch
             embuild
             espup
 

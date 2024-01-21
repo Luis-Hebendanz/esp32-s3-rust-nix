@@ -15,6 +15,9 @@ jobs:
   rust-checks:
     name: Rust Checks
     runs-on: ubuntu-latest
+    defaults: # add this block
+      run:
+        working-directory: ./nes-vcr
     strategy:
       fail-fast: false
       matrix:
