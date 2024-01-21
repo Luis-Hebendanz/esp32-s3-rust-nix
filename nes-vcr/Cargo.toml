@@ -28,7 +28,7 @@ embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-
 log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.47.3", default-features = false }
 petgraph = "0.6.4"
-anyhow = {version = "1", features = ["backtrace"]}
+anyhow = {version = "1"}
 
 
 
