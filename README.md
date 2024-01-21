@@ -1,4 +1,7 @@
-# ESP-RS Development Environment Template
+# ESP32-S3 Rust Development Environment
+
+This is a development environment for the ESP32-s3 board build with nix. It needs the nix.settings.sandbox = "relaxed";
+Setting to be toggled as it downloads artifacts at run time from the web.
 
 
 # Getting Started with the Development Environment
@@ -15,7 +18,7 @@ Let's get your development environment up and running:
 On Windows Subsystem for Linux (WSL) the installer will fail and tell you what to do. Execute the command from the error message and then afterwards execute:
 
 ```bash
-sudo echo "experimental-features = nix-command flakes" > '/etc/nix/nix.conf'
+sudo echo "experimental-features = nix-command flakes" >> '/etc/nix/nix.conf'
 ```
 
 2. **Install direnv**:
