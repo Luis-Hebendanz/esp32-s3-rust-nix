@@ -19,7 +19,6 @@
       {
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
-            rustup
             cmake
             ninja
             dfu-util
@@ -27,7 +26,25 @@
             cargo-espflash
             embuild
             espup
+
+            # esp deps
+            flex 
+            bison 
+            gperf 
+            python3
+            ccache 
+            glibc
+            libffi 
+            rust-analyzer
+            dfu-util
+            libusb
           ];
+          shellHook = ''
+            export EMBUILD=${embuild}
+            export ESPUP=${espup}/bin
+            export PATH="$ESPUP/bin:$PATH"
+            source $ESPUP/esptools.sh
+          '';
         };
       });
 }

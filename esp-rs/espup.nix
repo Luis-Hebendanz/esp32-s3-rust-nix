@@ -1,7 +1,8 @@
 { pkgs }:
 pkgs.stdenv.mkDerivation {
+  __noChroot = true;
   name = "espup";
-  buildInputs = with pkgs; [ espup cargo rustc rustup ];
+  buildInputs = with pkgs; [ cacert espup cargo rustc rustup ];
   unpackPhase = "true";
   buildPhase = ''
     export HOME=$out
@@ -11,9 +12,6 @@ pkgs.stdenv.mkDerivation {
     chmod +x $out/bin/esptools.sh
   '';
   installPhase = ''
-    . $out/bin/esptools.sh
-  '';
-  shellHook = ''
     . $out/bin/esptools.sh
   '';
 }
