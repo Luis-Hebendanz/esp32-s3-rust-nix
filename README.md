@@ -63,5 +63,10 @@ sudo echo "experimental-features = nix-command flakes" >> '/etc/nix/nix.conf'
 7. **Open up the Documentation**
     - To open the library documentation execute:
     ```bash
-    cargo doc --open
+    cargo doc --open --package esp-idf-svc
     ```
+
+8. **Board Configuration**
+   - To configure the board, the `sdkconfig.defaults` file needs to be modified.
+   - Go to the reference manual https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/kconfig.html and set the options manually in `sdkconfig.defaults`
+   - Or execute `idf.py menuconfig` in another C esp32-s3 project set the options you want and then copy them over to the `sdkconfig.defaults` file
