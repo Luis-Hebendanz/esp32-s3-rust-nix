@@ -1,5 +1,5 @@
 [package]
-name = "nes-vcr"
+name = "espmain"
 version = "0.1.0"
 authors = ["Luis-Hebendanz <consulting@qube.email>"]
 edition = "2021"
@@ -29,7 +29,7 @@ log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.47.3", default-features = false }
 petgraph = "0.6.4"
 anyhow = {version = "1"}
-
+vcp = { path="../vcp" }
 
 
 

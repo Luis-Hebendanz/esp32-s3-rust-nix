@@ -1,7 +1,6 @@
-
+use espmain::complex_example_func;
 use petgraph::dot::Dot;
 use petgraph::prelude::Graph;
-use nes_vcr::complex_example_func;
 
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -23,5 +22,3 @@ fn main() {
     println!("{}", Dot::new(&graph));
     complex_example_func();
 }
-
-
