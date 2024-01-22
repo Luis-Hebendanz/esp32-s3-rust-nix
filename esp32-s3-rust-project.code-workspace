@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.watcherExclude": {
+			".direnv": true
+		},
+		"files.exclude": {
+			".direnv": true,
+			"**/.embuild": true,
+			"**/target": true
+		}
+	}
+}
