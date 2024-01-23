@@ -15,6 +15,12 @@ Let's get your development environment up and running:
      curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
      ```
 
+Afterwards execute the command:
+```bash
+sudo echo "sandbox = relaxed" >> /etc/nix/nix.conf && sudo systemctl restart nix-daemon.service
+```
+
+
 On Windows Subsystem for Linux (WSL) the installer will fail and tell you what to do. Execute the command from the error message and then afterwards execute:
 
 ```bash
