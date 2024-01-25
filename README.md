@@ -93,3 +93,7 @@ Let's get your development environment up and running:
    - To configure the board, the `sdkconfig.defaults` file needs to be modified.
    - Go to the reference manual https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/kconfig.html and set the options manually in `sdkconfig.defaults`
    - Or execute `idf.py menuconfig` in another C esp32-s3 project set the options you want and then copy them over to the `sdkconfig.defaults` file
+
+11. Related Projects
+   - WIFI Init: https://github.com/gab5987/esp_flight_controller/blob/61812bf87a627ebd54acc80a8822052a42d88b94/src/telemetry.rs#L135
+   - https://github.com/wouterdebie/ikoc2024/blob/main/src/main.rs
