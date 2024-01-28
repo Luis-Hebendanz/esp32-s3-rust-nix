@@ -1,6 +1,6 @@
 use crate::vcp::*;
-
-// Implementation for Virtual VCP:
+use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex};
+/// Implementation for Virtual VCP Device
 pub struct VirtDevice {
     vcp: Vcp,
     position: (i32, i32),
@@ -23,6 +23,8 @@ impl VirtDevice {
     }
 }
 
+/// VirtManager contains all devices and message the "sending" of messages.
+/// It checks if the "devices" can hear each other by checking the distance.
 pub struct VirtManager {
     devices: Vec<VirtDevice>,
 
@@ -30,8 +32,6 @@ pub struct VirtManager {
     range: i32,
 }
 
-/// VirtManager contains all devices and message the "sending" of messages.
-/// It checks if the "devices" can hear each other by checking the distance.
 impl VirtManager {
     pub fn handle_messages(&mut self) {
         // send all message that are in outgoing_msgs to all devices
@@ -54,12 +54,12 @@ impl VirtManager {
                 }
             }
         }
-        for (s, m, r) in sends {
-            self.devices[r].vcp.receive(&m);
-        }
-
         for d in &mut self.devices {
             d.vcp.outgoing_msgs.clear();
+        }
+
+        for (s, m, r) in sends {
+            self.devices[r].vcp.receive(&m);
         }
     }
 
@@ -79,8 +79,48 @@ impl VirtManager {
             range: 10,
         }
     }
+    /// Generates a GraphViz Diagraph in .dot Filefromat
+    pub fn generate_graph(&self) -> String {
+        let mut g = Graph::<&String, String>::new();
 
-    pub fn generate_graph() {}
+        for (i, d) in self.devices.iter().enumerate() {
+            g.add_node(&d.vcp.debug_name);
+
+            if let Some(a) = d.vcp.successor {
+                if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
+                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from(""));
+                }
+            }
+            if let Some(a) = d.vcp.predecessor {
+                if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
+                    g.add_edge(NodeIndex::new(b), NodeIndex::new(i), String::from(""));
+                }
+            }
+        }
+        let scale = 10;
+        let get_edge = |a, b| String::from("");
+        let get_node = |a, b: (NodeIndex, &&String)| {
+            if let Some(d) = self.devices.get(b.0.index()) {
+                format!(
+                    "pos = \"{},{}!\"",
+                    d.position.0 / scale,
+                    d.position.1 / scale
+                )
+            } else {
+                String::from("\npos = \"0,0!\"")
+            }
+        };
+
+        let dot_g = Dot::with_attr_getters(
+            //Dot::with_config(
+            &g,
+            &[],
+            &get_edge,
+            &get_node,
+        );
+
+        dot_g.to_string()
+    }
 }
 
 #[cfg(test)]
