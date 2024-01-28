@@ -1,5 +1,6 @@
-use vcp::*;
+use dummy::VirtManager;
 
+mod dummy;
 mod vcp;
 
 fn main() {
