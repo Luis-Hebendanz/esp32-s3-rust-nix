@@ -61,6 +61,12 @@ impl VirtManager {
         for (s, m, r) in sends {
             self.devices[r].vcp.receive(&m);
         }
+
+        // send hello message
+
+        for d in &mut self.devices {
+            d.vcp.timer_call();
+        }
     }
 
     pub fn add_device(&mut self, pos: (i32, i32)) {
@@ -81,10 +87,15 @@ impl VirtManager {
     }
     /// Generates a GraphViz Diagraph in .dot Filefromat
     pub fn generate_graph(&self) -> String {
-        let mut g = Graph::<&String, String>::new();
+        let mut g = Graph::<String, String>::new();
 
         for (i, d) in self.devices.iter().enumerate() {
-            g.add_node(&d.vcp.debug_name);
+            let name = if let Some(id) = d.vcp.c_id {
+                format!("{} \npos {}", &d.vcp.debug_name, id)
+            } else {
+                d.vcp.debug_name.clone()
+            };
+            g.add_node(name.clone());
 
             if let Some(a) = d.vcp.successor {
                 if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
@@ -99,7 +110,7 @@ impl VirtManager {
         }
         let scale = 10;
         let get_edge = |a, b| String::from("");
-        let get_node = |a, b: (NodeIndex, &&String)| {
+        let get_node = |a, b: (NodeIndex, &String)| {
             if let Some(d) = self.devices.get(b.0.index()) {
                 format!(
                     "pos = \"{},{}!\"",
