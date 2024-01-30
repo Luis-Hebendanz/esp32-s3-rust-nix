@@ -43,6 +43,10 @@ impl VirtManager {
                         continue;
                     }
 
+                    if !m.is_for(rr.vcp.c_id) {
+                        continue;
+                    }
+
                     let dist_sqr = ((ss.position.0 - rr.position.0).pow(2)
                         + (ss.position.1 - rr.position.1).pow(2))
                         as f64;
@@ -74,8 +78,9 @@ impl VirtManager {
         d.position = pos;
         d.vcp.debug_name = format!("Dev: {}", self.devices.len());
         if self.devices.len() == 0 {
-            d.vcp.send_init_message();
+            d.vcp.c_id = Some(0);
         }
+        d.vcp.timer_call();
         self.devices.push(d);
     }
 
@@ -96,26 +101,28 @@ impl VirtManager {
                 d.vcp.debug_name.clone()
             };
             g.add_node(name.clone());
-
+        }
+        for (i, d) in self.devices.iter().enumerate() {
+            // add edges
             if let Some(a) = d.vcp.successor {
                 if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
-                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from(""));
+                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("p"));
                 }
             }
             if let Some(a) = d.vcp.predecessor {
                 if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
-                    g.add_edge(NodeIndex::new(b), NodeIndex::new(i), String::from(""));
+                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("s"));
                 }
             }
         }
-        let scale = 10;
-        let get_edge = |a, b| String::from("");
-        let get_node = |a, b: (NodeIndex, &String)| {
+        let scale = 3.0;
+        let get_edge = |_, b: petgraph::graph::EdgeReference<'_, String, _>| String::from(""); // b.weight().clone();
+        let get_node = |_, b: (NodeIndex, &String)| {
             if let Some(d) = self.devices.get(b.0.index()) {
                 format!(
                     "pos = \"{},{}!\"",
-                    d.position.0 / scale,
-                    d.position.1 / scale
+                    d.position.0 as f64 / scale,
+                    d.position.1 as f64 / scale
                 )
             } else {
                 String::from("\npos = \"0,0!\"")
@@ -140,6 +147,12 @@ mod tests {
 
     #[test]
     fn it_works2() {
+        let dev1 = VirtDevice::new(true);
+        let dev2 = VirtDevice::new(false);
+    }
+
+    #[test]
+    fn unicast() {
         let dev1 = VirtDevice::new(true);
         let dev2 = VirtDevice::new(false);
     }

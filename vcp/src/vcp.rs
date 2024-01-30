@@ -6,28 +6,53 @@ pub trait Communication {
 
 #[derive(Clone, Debug)]
 pub enum Message {
-    Init,
-    AckInit { orig_sender_cit: u64 },
     Hello(NeighborInfo),
-    SendNewPosition { old_position: CordId },
+    SendUpdatePredecessor { new_position: CordId },
+    SendUpdateSuccessor { new_position: CordId },
     Text(String),
+}
+
+#[derive(Clone, Debug)]
+pub enum Receiver {
+    Broadcast,
+    Unicast(CordId),
 }
 
 #[derive(Clone, Debug)]
 /// A Packet that will be send over the air
 pub struct Packet {
+    receiver: Receiver,
     sender_name: String,
-    sender_cid: Option<u64>,
+    sender_cid: Option<CordId>,
     message: Message,
 }
 
 impl Packet {
     pub fn new(src: &Vcp, mesage: Message) -> Self {
         Packet {
+            receiver: Receiver::Broadcast,
             sender_name: src.debug_name.clone(),
             sender_cid: src.c_id,
             message: mesage,
         }
+    }
+    pub fn new_unicast(src: &Vcp, dst: CordId, mesage: Message) -> Self {
+        Packet {
+            receiver: Receiver::Unicast(dst),
+            sender_name: src.debug_name.clone(),
+            sender_cid: src.c_id,
+            message: mesage,
+        }
+    }
+
+    pub fn is_for(&self, dst: Option<CordId>) -> bool {
+        if let Receiver::Unicast(l) = self.receiver {
+            if Some(l) != dst {
+                // Unicast packet is not meant for this device
+                return false;
+            }
+        }
+        return true;
     }
 }
 
@@ -71,19 +96,42 @@ impl Vcp {
         const S: CordId = 0;
         const E: CordId = 100;
         const I: CordId = 10;
-        let mut p_temp: CordId = 0;
-        for (cid, neighbor) in self.neighbors.iter() {
-            if *cid == S {
+        let p_temp: CordId;
+        for (&cid, neighbor) in self.neighbors.clone().iter() {
+            if cid == S {
                 if neighbor.successor.is_none() {
                     p_temp = E;
                 } else if neighbor.successor == Some(E) {
                     p_temp = (S + E) / 2;
                 } else {
-                    p_temp = neighbor.successor.unwrap() - I * (neighbor.successor.unwrap() - *cid);
+                    p_temp = neighbor.successor.unwrap() - I * (neighbor.successor.unwrap() - cid);
                 }
-                self.c_id = Some(p_temp);
-                self.predecessor = Some(*cid);
-                self.send_new_position_to_neighbor(*cid, p_temp);
+                self.c_id = Some(S);
+                self.successor = Some(p_temp);
+                self.send(&Packet::new_unicast(
+                    self,
+                    cid,
+                    Message::SendUpdatePredecessor {
+                        new_position: p_temp,
+                    },
+                ));
+                break;
+            } else if cid == E {
+                if neighbor.successor == Some(S) {
+                    p_temp = (S + E) / 2;
+                } else {
+                    p_temp =
+                        neighbor.predecessor.unwrap() - I * (neighbor.predecessor.unwrap() - cid);
+                }
+                self.c_id = Some(E);
+                self.predecessor = Some(p_temp);
+                self.send(&Packet::new_unicast(
+                    self,
+                    cid,
+                    Message::SendUpdateSuccessor {
+                        new_position: p_temp,
+                    },
+                ));
                 break;
             } else {
                 todo!()
@@ -93,43 +141,53 @@ impl Vcp {
 
     /// Method is called, when a new message is received.
     pub fn receive(&mut self, packet: &Packet) {
-        println!(
-            "{}: received '{:?}' from {}",
-            self.debug_name, packet.message, packet.sender_name
-        );
+        if !packet.is_for(self.c_id) {
+            return;
+        }
 
         match packet.message {
-            Message::Init => self.send(&Packet::new(
-                self,
-                Message::AckInit {
-                    orig_sender_cit: packet.sender_cid.expect("No cid was set for init message"),
-                },
-            )),
-            Message::AckInit { orig_sender_cit } => (),
             Message::Text(_) => todo!(),
             Message::Hello(neigh) => {
-                self.neighbors.insert(
+                let r = self.neighbors.insert(
                     packet.sender_cid.expect("Expected that CID is set"),
                     neigh.clone(),
                 );
+                if r.is_none() {
+                    println!(
+                        "{}: received '{:?}' from {}",
+                        self.debug_name, packet.message, packet.sender_name
+                    );
+                }
             }
-            Message::SendNewPosition { old_position } => todo!(),
+            Message::SendUpdatePredecessor { new_position } => {
+                let old_cid = self.c_id.clone();
+                self.c_id = Some(new_position);
+                self.predecessor = packet.sender_cid;
+                if old_cid != Some(new_position) {
+                    if let Some(dst) = self.successor {
+                        self.send(&Packet::new_unicast(
+                            self,
+                            dst,
+                            Message::SendUpdatePredecessor { new_position: dst },
+                        ));
+                    }
+                }
+            }
+            Message::SendUpdateSuccessor { new_position } => {
+                let old_cid = self.c_id.clone();
+                self.c_id = Some(new_position);
+                self.successor = packet.sender_cid;
+                if old_cid != Some(new_position) {
+                    if let Some(dst) = self.predecessor {
+                        self.send(&Packet::new_unicast(
+                            self,
+                            dst,
+                            Message::SendUpdateSuccessor { new_position: dst },
+                        ));
+                    }
+                }
+            }
         }
-
-        if let Some(cid) = packet.sender_cid {
-            // TODO very basic cord fiunc
-            self.successor = Some(cid);
-        }
-    }
-
-    pub fn send_init_message(&mut self) {
-        self.c_id = Some(0);
-        let p = Packet {
-            message: Message::Init,
-            sender_name: self.debug_name.clone(),
-            sender_cid: self.c_id,
-        };
-        self.send(&p);
     }
 
     fn send(&mut self, packet: &Packet) {
@@ -140,8 +198,7 @@ impl Vcp {
     /// Function that HAS to be called periodically
     pub fn timer_call(&mut self) {
         if self.c_id.is_none() {
-            // TODO
-            //self.set_my_position();
+            self.set_my_position();
         } else {
             self.send(&Packet::new(
                 &self,
@@ -151,9 +208,5 @@ impl Vcp {
                 }),
             ));
         }
-    }
-
-    fn send_new_position_to_neighbor(&self, cid: u64, p_temp: u64) {
-        todo!();
     }
 }
