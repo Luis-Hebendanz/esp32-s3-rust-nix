@@ -96,7 +96,10 @@ impl VirtManager {
 
         for (i, d) in self.devices.iter().enumerate() {
             let name = if let Some(id) = d.vcp.c_id {
-                format!("{} \npos {}", &d.vcp.debug_name, id)
+                format!(
+                    "{} \npos {}\np:{:?} s:{:?}",
+                    &d.vcp.debug_name, id, d.vcp.predecessor, d.vcp.successor
+                )
             } else {
                 d.vcp.debug_name.clone()
             };
@@ -155,5 +158,30 @@ mod tests {
     fn unicast() {
         let dev1 = VirtDevice::new(true);
         let dev2 = VirtDevice::new(false);
+    }
+    #[test]
+    fn failing() {
+        let mut mgr = VirtManager::new();
+        mgr.add_device((0, 0)); // will try to send the Init message
+        mgr.add_device((3, 5));
+        mgr.handle_messages();
+        mgr.handle_messages();
+        mgr.add_device((0, 12));
+        mgr.add_device((4, 20));
+
+        for _ in 0..10 {
+            mgr.handle_messages();
+            println!("...");
+        }
+        mgr.add_device((0, -4));
+        mgr.handle_messages();
+        mgr.handle_messages();
+        mgr.handle_messages();
+
+        mgr.add_device((0, 8));
+        mgr.handle_messages();
+        mgr.handle_messages();
+        mgr.handle_messages();
+        mgr.handle_messages();
     }
 }

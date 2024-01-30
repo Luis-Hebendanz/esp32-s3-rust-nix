@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub trait Communication {
     fn broadcast(&mut self, p: &Packet);
@@ -58,7 +58,7 @@ impl Packet {
 
 // General Code
 
-type CordId = u64;
+type CordId = u32;
 
 #[derive(Clone, Debug, Copy)]
 pub struct NeighborInfo {
@@ -76,7 +76,7 @@ pub struct Vcp {
     pub predecessor: Option<CordId>,
     pub successor: Option<CordId>,
 
-    pub neighbors: HashMap<CordId, NeighborInfo>,
+    pub neighbors: BTreeMap<CordId, NeighborInfo>,
 }
 
 impl Vcp {
@@ -88,23 +88,35 @@ impl Vcp {
             outgoing_msgs: Vec::new(),
             successor: None,
             predecessor: None,
-            neighbors: HashMap::new(),
+            neighbors: BTreeMap::new(),
         }
     }
 
     fn set_my_position(&mut self) {
+        if self.neighbors.len() == 0 {
+            return;
+        }
+
         const S: CordId = 0;
         const E: CordId = 100;
-        const I: CordId = 10;
-        let p_temp: CordId;
+        const I: f64 = 0.5;
+
+        fn position(a: CordId, b: CordId) -> CordId {
+            let tmp = a as f64 - I * (a as f64 - b as f64);
+
+            return tmp as CordId;
+        }
+
         for (&cid, neighbor) in self.neighbors.clone().iter() {
+            let p_temp: CordId;
             if cid == S {
+                // neigh is the first node
                 if neighbor.successor.is_none() {
                     p_temp = E;
                 } else if neighbor.successor == Some(E) {
                     p_temp = (S + E) / 2;
                 } else {
-                    p_temp = neighbor.successor.unwrap() - I * (neighbor.successor.unwrap() - cid);
+                    p_temp = position(neighbor.successor.unwrap(), cid);
                 }
                 self.c_id = Some(S);
                 self.successor = Some(p_temp);
@@ -115,13 +127,13 @@ impl Vcp {
                         new_position: p_temp,
                     },
                 ));
-                break;
+                return;
             } else if cid == E {
+                // neigh is the last node
                 if neighbor.successor == Some(S) {
                     p_temp = (S + E) / 2;
                 } else {
-                    p_temp =
-                        neighbor.predecessor.unwrap() - I * (neighbor.predecessor.unwrap() - cid);
+                    p_temp = position(neighbor.predecessor.unwrap(), cid);
                 }
                 self.c_id = Some(E);
                 self.predecessor = Some(p_temp);
@@ -132,11 +144,39 @@ impl Vcp {
                         new_position: p_temp,
                     },
                 ));
-                break;
-            } else {
-                todo!()
+                return;
             }
         }
+        for (&cid, neighbor) in self.neighbors.clone().iter() {
+            let p_temp: CordId;
+            for (&cid2, _) in self.neighbors.clone().iter() {
+                if cid2 == cid {
+                    continue;
+                }
+                if neighbor.predecessor == Some(cid2) {
+                    p_temp = (cid + cid2) / 2;
+                    self.predecessor = Some(cid);
+                    self.successor = Some(cid2);
+                    self.send(&Packet::new_unicast(
+                        self,
+                        cid,
+                        Message::SendUpdateSuccessor {
+                            new_position: p_temp,
+                        },
+                    ));
+                    self.send(&Packet::new_unicast(
+                        self,
+                        cid2,
+                        Message::SendUpdatePredecessor {
+                            new_position: p_temp,
+                        },
+                    ));
+                    return;
+                }
+            }
+        }
+        println!("virtual");
+        todo!("virtual");
     }
 
     /// Method is called, when a new message is received.
@@ -163,6 +203,8 @@ impl Vcp {
                 let old_cid = self.c_id.clone();
                 self.c_id = Some(new_position);
                 self.predecessor = packet.sender_cid;
+
+                // TODO is the recursive approach right?
                 if old_cid != Some(new_position) {
                     if let Some(dst) = self.successor {
                         self.send(&Packet::new_unicast(

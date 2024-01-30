@@ -12,14 +12,21 @@ fn main() {
     mgr.handle_messages();
     mgr.handle_messages();
     mgr.add_device((0, 12));
-    //mgr.add_device((10, 40));
+    mgr.add_device((4, 20));
 
     for _ in 0..10 {
         mgr.handle_messages();
         println!("...");
     }
-    //mgr.add_device((0, -4));
-    //mgr.handle_messages();
+    mgr.add_device((0, -4));
+    mgr.handle_messages();
+    mgr.handle_messages();
+    mgr.handle_messages();
 
+    mgr.add_device((0, 8));
+    mgr.handle_messages();
+    mgr.handle_messages();
+    mgr.handle_messages();
+    mgr.handle_messages();
     let _ = fs::write("out.dot", mgr.generate_graph());
 }
