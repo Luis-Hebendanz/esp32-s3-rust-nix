@@ -64,6 +64,7 @@ type CordId = u32;
 pub struct NeighborInfo {
     predecessor: Option<CordId>,
     successor: Option<CordId>,
+    age: u64,
 }
 
 pub struct Vcp {
@@ -77,6 +78,8 @@ pub struct Vcp {
     pub successor: Option<CordId>,
 
     pub neighbors: BTreeMap<CordId, NeighborInfo>,
+
+    ticks: u64,
 }
 
 impl Vcp {
@@ -89,6 +92,7 @@ impl Vcp {
             successor: None,
             predecessor: None,
             neighbors: BTreeMap::new(),
+            ticks: 0,
         }
     }
 
@@ -173,7 +177,7 @@ impl Vcp {
             }
         }
         println!("virtual");
-        todo!("virtual");
+        //todo!("virtual");
     }
 
     /// Method is called, when a new message is received.
@@ -187,7 +191,7 @@ impl Vcp {
             Message::Hello(neigh) => {
                 let r = self.neighbors.insert(
                     packet.sender_cid.expect("Expected that CID is set"),
-                    neigh.clone(),
+                    neigh.clone(), // age is set to 0
                 );
                 if r.is_none() {
                     println!(
@@ -202,7 +206,7 @@ impl Vcp {
                 self.predecessor = packet.sender_cid;
 
                 // TODO is the recursive approach right?
-                if old_cid != Some(new_position) {
+                /*if old_cid != Some(new_position) {
                     if let Some(dst) = self.successor {
                         self.send(&Packet::new_unicast(
                             self,
@@ -210,12 +214,13 @@ impl Vcp {
                             Message::SendUpdatePredecessor { new_position: dst },
                         ));
                     }
-                }
+                }*/
             }
             Message::SendUpdateSuccessor { new_position } => {
                 let old_cid = self.c_id.clone();
                 self.c_id = Some(new_position);
                 self.successor = packet.sender_cid;
+                /*
                 if old_cid != Some(new_position) {
                     if let Some(dst) = self.predecessor {
                         self.send(&Packet::new_unicast(
@@ -224,28 +229,64 @@ impl Vcp {
                             Message::SendUpdateSuccessor { new_position: dst },
                         ));
                     }
-                }
+                }*/
             }
         }
     }
 
     fn send(&mut self, packet: &Packet) {
-        println!("Sending {:?}", packet);
+        //println!("Sending {:?}", packet);
         self.outgoing_msgs.push(packet.clone());
     }
 
     /// Function that HAS to be called periodically
     pub fn timer_call(&mut self) {
+        self.ticks += 1;
         if self.c_id.is_none() {
-            self.set_my_position();
+            if (self.ticks > 1) {
+                self.set_my_position();
+            }
         } else {
             self.send(&Packet::new(
                 &self,
                 Message::Hello(NeighborInfo {
                     predecessor: self.predecessor,
                     successor: self.successor,
+                    age: 0,
                 }),
             ));
+        }
+
+        // change age
+        for n in self.neighbors.iter_mut() {
+            n.1.age += 1;
+        }
+        // remove all older than 5
+        self.neighbors.retain(|_, n| n.age < 5);
+
+        if let Some(cid) = self.c_id {
+            let mut max = None;
+            let mut min = None;
+            for (&n, _) in self.neighbors.iter() {
+                if n > cid {
+                    if let Some(max1) = max {
+                        if max1 < n {
+                            continue;
+                        }
+                    }
+                    max = Some(n);
+                }
+                if n < cid {
+                    if let Some(min1) = min {
+                        if min1 > n {
+                            continue;
+                        }
+                    }
+                    min = Some(n);
+                }
+            }
+            self.successor = max;
+            self.predecessor = min;
         }
     }
 }
