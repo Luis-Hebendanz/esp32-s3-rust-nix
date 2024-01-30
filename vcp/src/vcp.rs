@@ -155,21 +155,18 @@ impl Vcp {
                 }
                 if neighbor.predecessor == Some(cid2) {
                     p_temp = (cid + cid2) / 2;
+                    self.c_id = Some(p_temp);
                     self.predecessor = Some(cid);
                     self.successor = Some(cid2);
                     self.send(&Packet::new_unicast(
                         self,
                         cid,
-                        Message::SendUpdateSuccessor {
-                            new_position: p_temp,
-                        },
+                        Message::SendUpdateSuccessor { new_position: cid },
                     ));
                     self.send(&Packet::new_unicast(
                         self,
                         cid2,
-                        Message::SendUpdatePredecessor {
-                            new_position: p_temp,
-                        },
+                        Message::SendUpdatePredecessor { new_position: cid2 },
                     ));
                     return;
                 }
