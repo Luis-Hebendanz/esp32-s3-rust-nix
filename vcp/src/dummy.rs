@@ -96,10 +96,7 @@ impl VirtManager {
 
         for (i, d) in self.devices.iter().enumerate() {
             let name = if let Some(id) = d.vcp.c_id {
-                format!(
-                    "{} \npos {}\np:{:?} s:{:?} \n{:?}",
-                    &d.vcp.debug_name, id, d.vcp.predecessor, d.vcp.successor, d.vcp.virtual_cid
-                )
+                format!("{}", d.vcp)
             } else {
                 d.vcp.debug_name.clone()
             };

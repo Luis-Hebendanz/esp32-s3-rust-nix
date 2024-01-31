@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    fmt,
+    path::Display,
+};
 
 pub trait Communication {
     fn broadcast(&mut self, p: &Packet);
@@ -85,6 +89,27 @@ pub struct Vcp {
     pub virtual_cid: Option<CordId>,
 }
 
+impl fmt::Display for Vcp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let prev = self
+            .predecessor
+            .map(|a| a.to_string())
+            .unwrap_or("?".into());
+        let succ = self.successor.map(|a| a.to_string()).unwrap_or("?".into());
+        if let Some(cid) = self.c_id {
+            write!(f, "{} ", cid)?;
+        } else {
+            write!(f, "'{}'", self.debug_name)?
+        }
+        if let Some(virt) = self.virtual_cid {
+            write!(f, " virt {}", virt)?;
+        }
+
+        write!(f, ":\np{} s{}", prev, succ)?;
+        Ok(())
+    }
+}
+
 impl Vcp {
     pub fn new(is_first: bool) -> Self {
         let id = if is_first { Some(0) } else { None };
@@ -107,7 +132,7 @@ impl Vcp {
         }
 
         const S: CordId = 0;
-        const E: CordId = 100;
+        const E: CordId = 1000;
         const I: f64 = 0.5;
 
         fn position(a: CordId, b: CordId) -> CordId {
@@ -117,6 +142,10 @@ impl Vcp {
         }
 
         for (&cid, neighbor) in self.neighbors.clone().iter() {
+            /*if neighbor.virtual_cid.is_some() {
+                continue;
+                // A virtual node cannot go in between. Or can it)
+            }*/
             let p_temp: CordId;
             if cid == S {
                 // neigh is the first node
@@ -182,7 +211,7 @@ impl Vcp {
             }
         }
         if let Some((&cid, neigh)) = self.neighbors.iter().find(|p| p.1.virtual_cid.is_none()) {
-            println!("virtual");
+            // find a neighbor without virtual_cid
             let new_virt = (cid + neigh.successor.unwrap()) / 2;
             let new_cid = (cid + new_virt) / 2;
             self.c_id = Some(new_cid);
@@ -299,6 +328,23 @@ impl Vcp {
         let mut succ = None;
         let mut pred = None;
 
+        fn set_if_smaller(set: &Option<CordId>, new: CordId) -> Option<CordId> {
+            if let Some(min1) = *set {
+                if min1 > new {
+                    return *set;
+                }
+            }
+            return Some(new);
+        }
+        fn set_if_larger(set: &Option<CordId>, new: CordId) -> Option<CordId> {
+            if let Some(min1) = *set {
+                if min1 < new {
+                    return *set;
+                }
+            }
+            return Some(new);
+        }
+
         if let Some(cid) = self.c_id {
             for (&n, neigh) in self.neighbors.iter() {
                 if n > cid {
@@ -308,48 +354,29 @@ impl Vcp {
                             continue;
                         }
                     }
-
-                    if let Some(max1) = succ {
-                        if max1 < n {
-                            continue;
-                        }
-                    }
-                    succ = Some(n);
+                    succ = set_if_larger(&succ, n);
                 }
                 if n < cid {
-                    if let Some(min1) = pred {
-                        if min1 > n {
-                            continue;
-                        }
-                    }
-                    pred = Some(n);
+                    pred = set_if_smaller(&pred, n);
                 }
             }
             for (&n, neigh) in self.neighbors.iter() {
                 // check if neigh has closer virtual
                 if let Some(virt) = neigh.virtual_cid {
-                    if let Some(max1) = succ {
-                        if max1 < virt {
-                            continue;
-                        }
-                    }
                     if virt < cid {
+                        // if virt is smaller than cid, it cant be succ;
                         continue;
                     }
-                    succ = Some(virt);
+                    succ = set_if_smaller(&succ, virt);
                 }
             }
             for (&n, neigh) in self.neighbors.iter() {
                 if let Some(virt) = neigh.virtual_cid {
-                    if let Some(min1) = pred {
-                        if min1 > virt {
-                            continue;
-                        }
-                    }
                     if virt > cid {
+                        // if virt is larger than cid, it cant be pred;
                         continue;
                     }
-                    pred = Some(virt);
+                    pred = set_if_smaller(&pred, virt);
                 }
             }
         }
