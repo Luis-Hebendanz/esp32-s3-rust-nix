@@ -97,8 +97,8 @@ impl VirtManager {
         for (i, d) in self.devices.iter().enumerate() {
             let name = if let Some(id) = d.vcp.c_id {
                 format!(
-                    "{} \npos {}\np:{:?} s:{:?}",
-                    &d.vcp.debug_name, id, d.vcp.predecessor, d.vcp.successor
+                    "{} \npos {}\np:{:?} s:{:?} \n{:?}",
+                    &d.vcp.debug_name, id, d.vcp.predecessor, d.vcp.successor, d.vcp.virtual_cid
                 )
             } else {
                 d.vcp.debug_name.clone()
@@ -108,13 +108,21 @@ impl VirtManager {
         for (i, d) in self.devices.iter().enumerate() {
             // add edges
             if let Some(a) = d.vcp.successor {
-                if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
-                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("p"));
+                if let Some(b) = self
+                    .devices
+                    .iter()
+                    .position(|p| p.vcp.c_id == Some(a) || p.vcp.virtual_cid == Some(a))
+                {
+                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("s"));
                 }
             }
             if let Some(a) = d.vcp.predecessor {
-                if let Some(b) = self.devices.iter().position(|p| p.vcp.c_id == Some(a)) {
-                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("s"));
+                if let Some(b) = self
+                    .devices
+                    .iter()
+                    .position(|p| p.vcp.c_id == Some(a) || p.vcp.virtual_cid == Some(a))
+                {
+                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("p"));
                 }
             }
         }

@@ -9,6 +9,7 @@ pub enum Message {
     Hello(NeighborInfo),
     SendUpdatePredecessor { new_position: CordId },
     SendUpdateSuccessor { new_position: CordId },
+    CreateVirtualNode { virtual_position: CordId },
     Text(String),
 }
 
@@ -59,11 +60,12 @@ impl Packet {
 // General Code
 
 type CordId = u32;
-
+type NeighborMap = BTreeMap<CordId, NeighborInfo>;
 #[derive(Clone, Debug, Copy)]
 pub struct NeighborInfo {
     predecessor: Option<CordId>,
     successor: Option<CordId>,
+    virtual_cid: Option<CordId>,
     age: u64,
 }
 
@@ -77,9 +79,10 @@ pub struct Vcp {
     pub predecessor: Option<CordId>,
     pub successor: Option<CordId>,
 
-    pub neighbors: BTreeMap<CordId, NeighborInfo>,
+    pub neighbors: NeighborMap,
 
     ticks: u64,
+    pub virtual_cid: Option<CordId>,
 }
 
 impl Vcp {
@@ -92,7 +95,9 @@ impl Vcp {
             successor: None,
             predecessor: None,
             neighbors: BTreeMap::new(),
-            ticks: 0,
+            ticks: 0, // the clock of the node
+
+            virtual_cid: None,
         }
     }
 
@@ -176,8 +181,21 @@ impl Vcp {
                 }
             }
         }
-        println!("virtual");
-        //todo!("virtual");
+        if let Some((&cid, neigh)) = self.neighbors.iter().find(|p| p.1.virtual_cid.is_none()) {
+            println!("virtual");
+            let new_virt = (cid + neigh.successor.unwrap()) / 2;
+            let new_cid = (cid + new_virt) / 2;
+            self.c_id = Some(new_cid);
+            self.predecessor = Some(cid);
+            self.successor = Some(new_virt);
+            self.send(&Packet::new_unicast(
+                self,
+                cid,
+                Message::CreateVirtualNode {
+                    virtual_position: new_virt,
+                },
+            ));
+        }
     }
 
     /// Method is called, when a new message is received.
@@ -231,6 +249,10 @@ impl Vcp {
                     }
                 }*/
             }
+            Message::CreateVirtualNode { virtual_position } => {
+                self.virtual_cid = Some(virtual_position);
+                self.successor = packet.sender_cid;
+            }
         }
     }
 
@@ -243,15 +265,18 @@ impl Vcp {
     pub fn timer_call(&mut self) {
         self.ticks += 1;
         if self.c_id.is_none() {
+            // request own position
             if (self.ticks > 1) {
                 self.set_my_position();
             }
         } else {
+            // send hello messages, regularly
             self.send(&Packet::new(
                 &self,
                 Message::Hello(NeighborInfo {
                     predecessor: self.predecessor,
                     successor: self.successor,
+                    virtual_cid: self.virtual_cid,
                     age: 0,
                 }),
             ));
@@ -264,29 +289,118 @@ impl Vcp {
         // remove all older than 5
         self.neighbors.retain(|_, n| n.age < 5);
 
+        // find best successor and predecessor
+        let (s, p) = Vcp::calc_successor_predecessor(&self);
+        self.successor = s;
+        self.predecessor = p;
+    }
+
+    fn calc_successor_predecessor(&self) -> (Option<u32>, Option<u32>) {
+        let mut succ = None;
+        let mut pred = None;
+
         if let Some(cid) = self.c_id {
-            let mut max = None;
-            let mut min = None;
-            for (&n, _) in self.neighbors.iter() {
+            for (&n, neigh) in self.neighbors.iter() {
                 if n > cid {
-                    if let Some(max1) = max {
+                    // check virtual
+                    if let Some(virt) = self.virtual_cid {
+                        if n < virt {
+                            continue;
+                        }
+                    }
+
+                    if let Some(max1) = succ {
                         if max1 < n {
                             continue;
                         }
                     }
-                    max = Some(n);
+                    succ = Some(n);
                 }
                 if n < cid {
-                    if let Some(min1) = min {
+                    if let Some(min1) = pred {
                         if min1 > n {
                             continue;
                         }
                     }
-                    min = Some(n);
+                    pred = Some(n);
                 }
             }
-            self.successor = max;
-            self.predecessor = min;
+            for (&n, neigh) in self.neighbors.iter() {
+                // check if neigh has closer virtual
+                if let Some(virt) = neigh.virtual_cid {
+                    if let Some(max1) = succ {
+                        if max1 < virt {
+                            continue;
+                        }
+                    }
+                    if virt < cid {
+                        continue;
+                    }
+                    succ = Some(virt);
+                }
+            }
+            for (&n, neigh) in self.neighbors.iter() {
+                if let Some(virt) = neigh.virtual_cid {
+                    if let Some(min1) = pred {
+                        if min1 > virt {
+                            continue;
+                        }
+                    }
+                    if virt > cid {
+                        continue;
+                    }
+                    pred = Some(virt);
+                }
+            }
         }
+        (succ, pred)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calc_successor_predecessor() {
+        let mut slf = Vcp::new(false);
+        slf.c_id = Some(50);
+
+        let ni = NeighborInfo {
+            predecessor: None,
+            successor: None,
+            virtual_cid: None,
+            age: 0,
+        };
+        slf.neighbors.insert(60, ni);
+        slf.neighbors.insert(70, ni);
+        slf.neighbors.insert(55, ni);
+        slf.neighbors.insert(45, ni);
+        slf.neighbors.insert(10, ni);
+        let (s, p) = Vcp::calc_successor_predecessor(&slf);
+
+        assert_eq!(s, Some(55));
+        assert_eq!(p, Some(45));
+    }
+
+    #[test]
+    fn calc_successor_predecessor_virtual() {
+        let mut slf = Vcp::new(false);
+        slf.c_id = Some(50);
+        slf.virtual_cid = Some(70);
+
+        let ni = NeighborInfo {
+            predecessor: None,
+            successor: None,
+            virtual_cid: None,
+            age: 0,
+        };
+        slf.neighbors.insert(0, ni);
+        slf.neighbors.insert(60, ni);
+        slf.neighbors.insert(100, ni);
+        let (s, p) = Vcp::calc_successor_predecessor(&slf);
+
+        assert_eq!(s, Some(100));
+        assert_eq!(p, Some(0));
     }
 }
