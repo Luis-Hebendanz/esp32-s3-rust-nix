@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt,
-    path::Display,
 };
 
 pub trait Communication {
@@ -69,7 +68,7 @@ type NeighborMap = BTreeMap<CordId, NeighborInfo>;
 pub struct NeighborInfo {
     predecessor: Option<CordId>,
     successor: Option<CordId>,
-    virtual_cid: Option<CordId>,
+    is_virtual: bool,
     age: u64,
 }
 
@@ -86,7 +85,8 @@ pub struct Vcp {
     pub neighbors: NeighborMap,
 
     ticks: u64,
-    pub virtual_cid: Option<CordId>,
+    pub virtual_nodes: Vec<Vcp>,
+    is_virtual: bool,
 }
 
 impl fmt::Display for Vcp {
@@ -96,13 +96,20 @@ impl fmt::Display for Vcp {
             .map(|a| a.to_string())
             .unwrap_or("?".into());
         let succ = self.successor.map(|a| a.to_string()).unwrap_or("?".into());
-        if let Some(cid) = self.c_id {
-            write!(f, "{} ", cid)?;
-        } else {
-            write!(f, "'{}'", self.debug_name)?
+        if self.is_virtual {
+            write!(f, "v")?;
         }
-        if let Some(virt) = self.virtual_cid {
-            write!(f, " virt {}", virt)?;
+        if let Some(cid) = self.c_id {
+            write!(f, "{}", cid)?;
+        } else {
+        }
+        write!(f, "'{}'", self.debug_name)?;
+        if !self.virtual_nodes.is_empty() {
+            write!(f, "\nvirt{{")?;
+            for virt in &self.virtual_nodes {
+                write!(f, "{},", virt.c_id.unwrap())?;
+            }
+            write!(f, "}}")?;
         }
 
         write!(f, ":\np{} s{}", prev, succ)?;
@@ -121,8 +128,8 @@ impl Vcp {
             predecessor: None,
             neighbors: BTreeMap::new(),
             ticks: 0, // the clock of the node
-
-            virtual_cid: None,
+            virtual_nodes: Vec::new(),
+            is_virtual: false,
         }
     }
 
@@ -210,7 +217,7 @@ impl Vcp {
                 }
             }
         }
-        if let Some((&cid, neigh)) = self.neighbors.iter().find(|p| p.1.virtual_cid.is_none()) {
+        if let Some((&cid, neigh)) = self.neighbors.iter().find(|n| !n.1.is_virtual) {
             // find a neighbor without virtual_cid
             let new_virt = (cid + neigh.successor.unwrap()) / 2;
             let new_cid = (cid + new_virt) / 2;
@@ -229,6 +236,9 @@ impl Vcp {
 
     /// Method is called, when a new message is received.
     pub fn receive(&mut self, packet: &Packet) {
+        for virt in self.virtual_nodes.iter_mut() {
+            virt.receive(packet);
+        }
         if !packet.is_for(self.c_id) {
             return;
         }
@@ -279,8 +289,11 @@ impl Vcp {
                 }*/
             }
             Message::CreateVirtualNode { virtual_position } => {
-                self.virtual_cid = Some(virtual_position);
-                self.successor = packet.sender_cid;
+                let mut new_vcp = Vcp::new(false);
+                new_vcp.c_id = Some(virtual_position);
+                new_vcp.debug_name = format!("Virt {}", self.debug_name);
+                new_vcp.is_virtual = true;
+                self.virtual_nodes.push(new_vcp);
             }
         }
     }
@@ -305,7 +318,7 @@ impl Vcp {
                 Message::Hello(NeighborInfo {
                     predecessor: self.predecessor,
                     successor: self.successor,
-                    virtual_cid: self.virtual_cid,
+                    is_virtual: self.is_virtual,
                     age: 0,
                 }),
             ));
@@ -322,6 +335,11 @@ impl Vcp {
         let (s, p) = Vcp::calc_successor_predecessor(&self);
         self.successor = s;
         self.predecessor = p;
+
+        for virt in self.virtual_nodes.iter_mut() {
+            virt.timer_call();
+            self.outgoing_msgs.append(&mut virt.outgoing_msgs);
+        }
     }
 
     fn calc_successor_predecessor(&self) -> (Option<u32>, Option<u32>) {
@@ -348,35 +366,10 @@ impl Vcp {
         if let Some(cid) = self.c_id {
             for (&n, neigh) in self.neighbors.iter() {
                 if n > cid {
-                    // check virtual
-                    if let Some(virt) = self.virtual_cid {
-                        if n < virt {
-                            continue;
-                        }
-                    }
                     succ = set_if_larger(&succ, n);
                 }
                 if n < cid {
                     pred = set_if_smaller(&pred, n);
-                }
-            }
-            for (&n, neigh) in self.neighbors.iter() {
-                // check if neigh has closer virtual
-                if let Some(virt) = neigh.virtual_cid {
-                    if virt < cid {
-                        // if virt is smaller than cid, it cant be succ;
-                        continue;
-                    }
-                    succ = set_if_smaller(&succ, virt);
-                }
-            }
-            for (&n, neigh) in self.neighbors.iter() {
-                if let Some(virt) = neigh.virtual_cid {
-                    if virt > cid {
-                        // if virt is larger than cid, it cant be pred;
-                        continue;
-                    }
-                    pred = set_if_smaller(&pred, virt);
                 }
             }
         }
@@ -396,7 +389,7 @@ mod tests {
         let ni = NeighborInfo {
             predecessor: None,
             successor: None,
-            virtual_cid: None,
+            is_virtual: false,
             age: 0,
         };
         slf.neighbors.insert(60, ni);
@@ -414,12 +407,11 @@ mod tests {
     fn calc_successor_predecessor_virtual() {
         let mut slf = Vcp::new(false);
         slf.c_id = Some(50);
-        slf.virtual_cid = Some(70);
 
         let ni = NeighborInfo {
             predecessor: None,
             successor: None,
-            virtual_cid: None,
+            is_virtual: true,
             age: 0,
         };
         slf.neighbors.insert(0, ni);
@@ -427,7 +419,7 @@ mod tests {
         slf.neighbors.insert(100, ni);
         let (s, p) = Vcp::calc_successor_predecessor(&slf);
 
-        assert_eq!(s, Some(100));
+        assert_eq!(s, Some(60));
         assert_eq!(p, Some(0));
     }
 }

@@ -1,5 +1,5 @@
 use crate::vcp::*;
-use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex};
+use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex, visit::NodeRef};
 /// Implementation for Virtual VCP Device
 pub struct VirtDevice {
     vcp: Vcp,
@@ -92,45 +92,51 @@ impl VirtManager {
     }
     /// Generates a GraphViz Diagraph in .dot Filefromat
     pub fn generate_graph(&self) -> String {
+        const SCALE: f64 = 3.0;
+        const DISPLAY_VIRTUAL_NODES: bool = false;
         let mut g = Graph::<String, String>::new();
 
-        for (i, d) in self.devices.iter().enumerate() {
-            let name = if let Some(id) = d.vcp.c_id {
-                format!("{}", d.vcp)
-            } else {
-                d.vcp.debug_name.clone()
-            };
-            g.add_node(name.clone());
+        let mut devs_and_virtuals: Vec<(usize, &VirtDevice, &Vcp)> = Vec::new();
+
+        let mut i = 0;
+        for dev in &self.devices {
+            g.add_node(format!("{}", dev.vcp));
+            devs_and_virtuals.push((i, dev, &dev.vcp));
+
+            for virt in &dev.vcp.virtual_nodes {
+                if DISPLAY_VIRTUAL_NODES {
+                    i += 1;
+                    g.add_node(format!("{}", virt));
+                }
+                devs_and_virtuals.push((i, dev, virt));
+            }
+            i += 1;
         }
-        for (i, d) in self.devices.iter().enumerate() {
+
+        for (i, _, v) in &devs_and_virtuals {
             // add edges
-            if let Some(a) = d.vcp.successor {
-                if let Some(b) = self
-                    .devices
-                    .iter()
-                    .position(|p| p.vcp.c_id == Some(a) || p.vcp.virtual_cid == Some(a))
+            if let Some(a) = v.successor {
+                if let Some((b, _, _)) =
+                    devs_and_virtuals.iter().find(|(_, _, p)| p.c_id == Some(a))
                 {
-                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("s"));
+                    g.add_edge(NodeIndex::new(*i), NodeIndex::new(*b), String::from("s"));
                 }
             }
-            if let Some(a) = d.vcp.predecessor {
-                if let Some(b) = self
-                    .devices
-                    .iter()
-                    .position(|p| p.vcp.c_id == Some(a) || p.vcp.virtual_cid == Some(a))
+            if let Some(a) = v.predecessor {
+                if let Some((b, _, _)) =
+                    devs_and_virtuals.iter().find(|(_, _, p)| p.c_id == Some(a))
                 {
-                    g.add_edge(NodeIndex::new(i), NodeIndex::new(b), String::from("p"));
+                    g.add_edge(NodeIndex::new(*i), NodeIndex::new(*b), String::from("p"));
                 }
             }
         }
-        let scale = 3.0;
         let get_edge = |_, b: petgraph::graph::EdgeReference<'_, String, _>| String::from(""); // b.weight().clone();
         let get_node = |_, b: (NodeIndex, &String)| {
-            if let Some(d) = self.devices.get(b.0.index()) {
+            if let Some((_, d, v)) = devs_and_virtuals.iter().find(|(i, _, _)| *i == b.0.index()) {
                 format!(
                     "pos = \"{},{}!\"",
-                    d.position.0 as f64 / scale,
-                    d.position.1 as f64 / scale
+                    d.position.0 as f64 / SCALE,
+                    d.position.1 as f64 / SCALE
                 )
             } else {
                 String::from("\npos = \"0,0!\"")
