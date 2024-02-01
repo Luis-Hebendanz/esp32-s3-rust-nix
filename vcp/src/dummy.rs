@@ -1,3 +1,10 @@
+use std::{
+    fs::{self, remove_file},
+    io::Error,
+    path::Path,
+    process::Command,
+};
+
 use crate::vcp::*;
 use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex};
 /// Implementation for Virtual VCP Device
@@ -231,6 +238,27 @@ impl VirtManager {
 
         dot_g.to_string()
     }
+}
+pub fn save_to_png(dot_g: &String, path: &Path) -> Result<(), Error> {
+    let dotfile = format!(
+        "{}/{}.{}",
+        path.parent().unwrap().to_str().unwrap(),
+        path.file_stem().unwrap().to_str().unwrap(),
+        "dot"
+    );
+    println!("{}", dotfile);
+
+    let _ = fs::write(dotfile.clone(), dot_g).expect("msg");
+    let cmd = Command::new("dot")
+        .arg("-Kfdp")
+        .arg("-n")
+        .arg("-Tpng")
+        .arg(dotfile.clone())
+        .args(["-o", path.to_str().unwrap()])
+        .status()
+        .expect("command failed");
+    remove_file(dotfile)?;
+    Ok(())
 }
 
 #[cfg(test)]

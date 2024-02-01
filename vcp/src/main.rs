@@ -1,6 +1,8 @@
-use std::fs;
+use std::{fs, path::Path};
 
 use dummy::VirtManager;
+
+use crate::dummy::save_to_png;
 
 mod dummy;
 mod vcp;
@@ -10,6 +12,7 @@ fn main() {
 
     let mut mgr = VirtManager::new();
     let mut age = 0;
+    let mut old_graph: Option<String> = None;
     let mut ticks = |n: i32, mgr: &mut VirtManager| {
         for _ in 0..n {
             mgr.handle_messages();
@@ -18,6 +21,13 @@ fn main() {
             if err.is_some() {
                 println!("Inconsisten at {age} {}", err.unwrap());
             }
+
+            let name = format!("out/{:0>3}.png", age);
+            let gr = mgr.generate_graph();
+            if Some(&gr) != old_graph.as_ref() {
+                save_to_png(&gr, Path::new(&name));
+            }
+            old_graph = Some(gr);
         }
     };
     mgr.add_device((2, -2)); // will try to send the Init message
