@@ -46,6 +46,7 @@ impl Packet {
         }
     }
 
+    /// check if self is the receiver of dst. Or if dst in broadcast
     pub fn is_for(&self, dst: Option<CordId>) -> bool {
         if let Receiver::Unicast(l) = self.receiver {
             if Some(l) != dst {
@@ -62,6 +63,7 @@ impl Packet {
 type CordId = u32;
 type NeighborMap = BTreeMap<CordId, NeighborInfo>;
 #[derive(Clone, Debug, Copy)]
+/// Packs information about all neighbors, that have to be remembered
 pub struct NeighborInfo {
     predecessor: Option<CordId>,
     successor: Option<CordId>,
@@ -70,7 +72,7 @@ pub struct NeighborInfo {
 }
 
 pub struct Vcp {
-    /// The Cord Id. `None` means not assigned. And 0 is the first device.
+    /// The Cord Id (the Position). `None` means not assigned. And 0 is the first device.
     pub c_id: Option<CordId>,
     pub debug_name: String,
     /// All messages that should be sent
@@ -130,6 +132,7 @@ impl Vcp {
         }
     }
 
+    /// Function to request a CID, and send PositionChange Requests to Other nodes
     fn set_my_position(&mut self) {
         if self.neighbors.len() == 0 {
             return;
@@ -147,8 +150,8 @@ impl Vcp {
 
         for (&cid, neighbor) in self.neighbors.clone().iter() {
             if cid == S {
-                let new_position: CordId;
                 // neigh is the first node
+                let new_position: CordId;
                 if neighbor.successor.is_none() {
                     new_position = E;
                 } else if neighbor.successor == Some(E) {
@@ -165,8 +168,8 @@ impl Vcp {
                 ));
                 return;
             } else if cid == E {
-                let new_position: CordId;
                 // neigh is the last node
+                let new_position: CordId;
                 if neighbor.successor == Some(S) {
                     new_position = (S + E) / 2;
                 } else {
@@ -182,6 +185,12 @@ impl Vcp {
                 return;
             }
         }
+
+        // ... no neighbor at End or Start found
+
+        // search for two neighbors which are direct neighbors
+        // cid -> cid2 and request to put in between:
+        // cid -> self.c_id -> cid2
         for (&cid, neighbor) in self.neighbors.clone().iter() {
             let p_temp: CordId;
             for (&cid2, _) in self.neighbors.clone().iter() {
@@ -207,6 +216,8 @@ impl Vcp {
                 }
             }
         }
+
+        // Otherwise request to create a virtual node
         if let Some((&cid, neigh)) = self.neighbors.iter().find(|n| !n.1.is_virtual) {
             // find a neighbor which is not virtual
             let new_virt = (cid + neigh.successor.unwrap()) / 2;
@@ -226,6 +237,7 @@ impl Vcp {
 
     /// Method is called, when a new message is received.
     pub fn receive(&mut self, packet: &Packet) {
+        // call receive for all Sub Nodes
         for virt in self.virtual_nodes.iter_mut() {
             virt.receive(packet);
         }
@@ -292,24 +304,32 @@ impl Vcp {
             ));
         }
 
-        // change age
-        for n in self.neighbors.iter_mut() {
-            n.1.age += 1;
-        }
-        // remove all older than 5
-        self.neighbors.retain(|_, n| n.age < 5);
+        self.update_neighbor_ages();
 
         // find best successor and predecessor
         let (s, p) = Vcp::calc_successor_predecessor(&self);
         self.successor = s;
         self.predecessor = p;
 
+        // Call timer of all virtual_nodes
         for virt in self.virtual_nodes.iter_mut() {
             virt.timer_call();
-            self.outgoing_msgs.append(&mut virt.outgoing_msgs);
+            self.outgoing_msgs.append(&mut virt.outgoing_msgs); // and move outgoing messages to self
         }
     }
 
+    /// Change age of all neighbor information.
+    /// This useful if information about neighbors get outdated
+    /// Also delete neighbors that are too old.
+    fn update_neighbor_ages(&mut self) {
+        for n in self.neighbors.iter_mut() {
+            n.1.age += 1;
+        }
+        // remove all older than 5
+        self.neighbors.retain(|_, n| n.age < 5);
+    }
+
+    /// Calculate the predecessor and successor by choosing the closest neighbor.
     fn calc_successor_predecessor(&self) -> (Option<u32>, Option<u32>) {
         let mut succ = None;
         let mut pred = None;

@@ -90,12 +90,15 @@ impl VirtManager {
             range: 10,
         }
     }
+
     /// Generates a GraphViz Diagraph in .dot Filefromat
     pub fn generate_graph(&self) -> String {
         const SCALE: f64 = 3.0;
+        /// Should Virtual Nodes be displayed in the graph or only included in the 'parrent' node.
         const DISPLAY_VIRTUAL_NODES: bool = false;
         let mut g = Graph::<String, String>::new();
 
+        // All Nodes and its Virtual Nodes, stored with Index and the Virtual Device Information
         let mut devs_and_virtuals: Vec<(usize, &VirtDevice, &Vcp)> = Vec::new();
 
         let mut i = 0;
@@ -114,7 +117,7 @@ impl VirtManager {
         }
 
         for (i, _, v) in &devs_and_virtuals {
-            // add edges
+            // add edges by searching the right NodeIndex of successor
             if let Some(a) = v.successor {
                 if let Some((b, _, _)) =
                     devs_and_virtuals.iter().find(|(_, _, p)| p.c_id == Some(a))
@@ -122,6 +125,7 @@ impl VirtManager {
                     g.add_edge(NodeIndex::new(*i), NodeIndex::new(*b), String::from("s"));
                 }
             }
+            // same with predeccesor
             if let Some(a) = v.predecessor {
                 if let Some((b, _, _)) =
                     devs_and_virtuals.iter().find(|(_, _, p)| p.c_id == Some(a))
@@ -130,6 +134,8 @@ impl VirtManager {
                 }
             }
         }
+
+        // Custom Attribute Functions to set the 2D Coodinates in the graph
         let get_edge = |_, _b: petgraph::graph::EdgeReference<'_, String, _>| String::from(""); // b.weight().clone();
         let get_node = |_, b: (NodeIndex, &String)| {
             if let Some((_, d, _v)) = devs_and_virtuals.iter().find(|(i, _, _)| *i == b.0.index()) {
@@ -170,29 +176,31 @@ mod tests {
         let dev1 = VirtDevice::new(true);
         let dev2 = VirtDevice::new(false);
     }
+
     #[test]
-    fn failing() {
+    fn complex_example() {
         let mut mgr = VirtManager::new();
-        mgr.add_device((0, 0)); // will try to send the Init message
+        fn ticks(n: i32, mgr: &mut VirtManager) {
+            for _ in 0..n {
+                mgr.handle_messages();
+            }
+        }
+        mgr.add_device((2, -2)); // will try to send the Init message
+        ticks(10, &mut mgr);
         mgr.add_device((3, 5));
-        mgr.handle_messages();
-        mgr.handle_messages();
-        mgr.add_device((0, 12));
+        ticks(10, &mut mgr);
+        mgr.add_device((0, 14));
+        ticks(10, &mut mgr);
         mgr.add_device((4, 20));
 
-        for _ in 0..10 {
-            mgr.handle_messages();
-            println!("...");
-        }
-        mgr.add_device((0, -4));
-        mgr.handle_messages();
-        mgr.handle_messages();
-        mgr.handle_messages();
-
-        mgr.add_device((0, 8));
-        mgr.handle_messages();
-        mgr.handle_messages();
-        mgr.handle_messages();
-        mgr.handle_messages();
+        ticks(10, &mut mgr);
+        mgr.add_device((3, -8));
+        ticks(20, &mut mgr);
+        mgr.add_device((10, 8));
+        ticks(30, &mut mgr);
+        mgr.add_device((10, 4));
+        ticks(30, &mut mgr);
+        mgr.add_device((-7, 5));
+        ticks(30, &mut mgr);
     }
 }
