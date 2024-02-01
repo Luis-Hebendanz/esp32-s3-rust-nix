@@ -253,10 +253,10 @@ impl Vcp {
                     neigh.clone(), // age is set to 0
                 );
                 if r.is_none() {
-                    println!(
+                    /*println!(
                         "{}: received '{:?}' from {}",
                         self.debug_name, packet.message, packet.sender_name
-                    );
+                    );*/
                 }
             }
             Message::SendUpdatePredecessor { new_position } => {

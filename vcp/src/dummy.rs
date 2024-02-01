@@ -91,6 +91,78 @@ impl VirtManager {
         }
     }
 
+    pub fn find_inconsitency(&self) -> Option<String> {
+        let mut devs_and_virtuals: Vec<(&VirtDevice, &Vcp)> = Vec::new();
+
+        for dev in &self.devices {
+            devs_and_virtuals.push((dev, &dev.vcp));
+
+            for virt in &dev.vcp.virtual_nodes {
+                devs_and_virtuals.push((dev, virt));
+            }
+        }
+        if devs_and_virtuals
+            .iter()
+            .find(|(_, a)| a.c_id.is_none())
+            .is_some()
+        {
+            return Some(format!("Some nodes don't have a valid cid"));
+        }
+
+        // check if each CID is unique
+        let mut ids: Vec<_> = devs_and_virtuals
+            .iter()
+            .map(|(_, a)| a.c_id.unwrap())
+            .collect();
+        ids.sort();
+        ids.dedup();
+
+        if ids.len() != devs_and_virtuals.len() {
+            return Some(format!("Some cids are not unique"));
+        }
+
+        // check if all successor and predecessor exist
+        for (_, v) in &devs_and_virtuals {
+            if let Some(a) = v.successor {
+                if devs_and_virtuals
+                    .iter()
+                    .find(|(_, p)| p.c_id == Some(a))
+                    .is_none()
+                {
+                    return Some(format!("{} successor does not exist", v.c_id.unwrap()));
+                }
+            }
+            if let Some(a) = v.predecessor {
+                if devs_and_virtuals
+                    .iter()
+                    .find(|(_, p)| p.c_id == Some(a))
+                    .is_none()
+                {
+                    return Some(format!("{} predecessor does not exist", v.c_id.unwrap()));
+                }
+            }
+        }
+
+        // check there is only one End and one Start
+        if devs_and_virtuals
+            .iter()
+            .filter(|(_, p)| p.successor.is_none())
+            .count()
+            != 1
+        {
+            return Some(format!("Too many loose ends"));
+        }
+        if devs_and_virtuals
+            .iter()
+            .filter(|(_, p)| p.predecessor.is_none())
+            .count()
+            != 1
+        {
+            return Some(format!("Too many loose ends"));
+        }
+
+        return None;
+    }
     /// Generates a GraphViz Diagraph in .dot Filefromat
     pub fn generate_graph(&self) -> String {
         const SCALE: f64 = 3.0;
@@ -202,5 +274,6 @@ mod tests {
         ticks(30, &mut mgr);
         mgr.add_device((-7, 5));
         ticks(30, &mut mgr);
+        assert!(mgr.find_inconsitency().is_none());
     }
 }
