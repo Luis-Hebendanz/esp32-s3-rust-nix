@@ -1,52 +1,39 @@
 use std::{fs, path::Path};
 
+use crate::playground::Playground;
 use dummy::VirtManager;
-
-use crate::dummy::save_to_png;
+use rand::Rng;
 
 mod dummy;
+mod playground;
 mod vcp;
 
+fn example1(play: &mut Playground) {
+    play.add_device(2, -2); // will try to send the Init message
+    play.add_device(3, 5);
+    play.add_device(0, 14);
+    play.add_device(4, 20);
+
+    play.add_device(3, -2);
+    play.add_device(10, 8);
+    play.add_device(10, 4);
+    play.add_device(-7, 5);
+    play.mgr.devices.remove(0);
+    play.ticks(10);
+}
+
+fn example_rnd(play: &mut Playground) {
+    let mut r = rand::thread_rng();
+    for _ in 0..10 {
+        play.add_device(r.gen_range(0..15), r.gen_range(0..15));
+    }
+    play.ticks(10);
+}
+
 fn main() {
-    let mgr = VirtManager::new();
-
-    let mut mgr = VirtManager::new();
-    let mut age = 0;
-    let mut old_graph: Option<String> = None;
-    let mut ticks = |n: i32, mgr: &mut VirtManager| {
-        for _ in 0..n {
-            mgr.handle_messages();
-            age += 1;
-            let err = mgr.find_inconsitency();
-            if err.is_some() {
-                println!("Inconsisten at {age} {}", err.unwrap());
-            }
-
-            let name = format!("out/{:0>3}.png", age);
-            let gr = mgr.generate_graph();
-            if Some(&gr) != old_graph.as_ref() {
-                save_to_png(&gr, Path::new(&name));
-            }
-            old_graph = Some(gr);
-        }
-    };
-    mgr.add_device((2, -2)); // will try to send the Init message
-    ticks(10, &mut mgr);
-    mgr.add_device((3, 5));
-    ticks(10, &mut mgr);
-    mgr.add_device((0, 14));
-    ticks(10, &mut mgr);
-    mgr.add_device((4, 20));
-
-    ticks(10, &mut mgr);
-    mgr.add_device((3, -8));
-    ticks(20, &mut mgr);
-    mgr.add_device((10, 8));
-    ticks(30, &mut mgr);
-    mgr.add_device((10, 4));
-    ticks(30, &mut mgr);
-    mgr.add_device((-7, 5));
-    ticks(30, &mut mgr);
-    let _ = fs::write("out.dot", mgr.generate_graph());
-    assert!(mgr.find_inconsitency().is_none());
+    let mut play = Playground::new();
+    example1(&mut play);
+    //example_rnd(&mut play);
+    let _ = fs::write("out.dot", play.mgr.generate_graph());
+    assert!(play.mgr.find_inconsitency().is_none());
 }

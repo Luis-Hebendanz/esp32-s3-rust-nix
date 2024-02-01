@@ -33,7 +33,7 @@ impl VirtDevice {
 /// VirtManager contains all devices and message the "sending" of messages.
 /// It checks if the "devices" can hear each other by checking the distance.
 pub struct VirtManager {
-    devices: Vec<VirtDevice>,
+    pub devices: Vec<VirtDevice>,
 
     // The max sending distance
     range: i32,
