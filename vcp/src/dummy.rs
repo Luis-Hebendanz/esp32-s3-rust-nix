@@ -1,5 +1,5 @@
 use crate::vcp::*;
-use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex, visit::NodeRef};
+use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex};
 /// Implementation for Virtual VCP Device
 pub struct VirtDevice {
     vcp: Vcp,
@@ -7,7 +7,7 @@ pub struct VirtDevice {
 }
 
 impl Communication for VirtDevice {
-    fn broadcast(&mut self, p: &Packet) {
+    fn broadcast(&mut self, _p: &Packet) {
         // The virtual sending is handled in VirtManager
         //self.vcp.outgoing_msgs.push(p.clone())
     }
@@ -62,7 +62,7 @@ impl VirtManager {
             d.vcp.outgoing_msgs.clear();
         }
 
-        for (s, m, r) in sends {
+        for (_s, m, r) in sends {
             self.devices[r].vcp.receive(&m);
         }
 
@@ -130,9 +130,9 @@ impl VirtManager {
                 }
             }
         }
-        let get_edge = |_, b: petgraph::graph::EdgeReference<'_, String, _>| String::from(""); // b.weight().clone();
+        let get_edge = |_, _b: petgraph::graph::EdgeReference<'_, String, _>| String::from(""); // b.weight().clone();
         let get_node = |_, b: (NodeIndex, &String)| {
-            if let Some((_, d, v)) = devs_and_virtuals.iter().find(|(i, _, _)| *i == b.0.index()) {
+            if let Some((_, d, _v)) = devs_and_virtuals.iter().find(|(i, _, _)| *i == b.0.index()) {
                 format!(
                     "pos = \"{},{}!\"",
                     d.position.0 as f64 / SCALE,

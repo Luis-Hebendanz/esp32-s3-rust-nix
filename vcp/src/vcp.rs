@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fmt,
-};
+use std::{collections::BTreeMap, fmt};
 
 pub trait Communication {
     fn broadcast(&mut self, p: &Packet);
@@ -149,45 +146,38 @@ impl Vcp {
         }
 
         for (&cid, neighbor) in self.neighbors.clone().iter() {
-            /*if neighbor.virtual_cid.is_some() {
-                continue;
-                // A virtual node cannot go in between. Or can it)
-            }*/
-            let p_temp: CordId;
             if cid == S {
+                let new_position: CordId;
                 // neigh is the first node
                 if neighbor.successor.is_none() {
-                    p_temp = E;
+                    new_position = E;
                 } else if neighbor.successor == Some(E) {
-                    p_temp = (S + E) / 2;
+                    new_position = (S + E) / 2;
                 } else {
-                    p_temp = position(neighbor.successor.unwrap(), cid);
+                    new_position = position(neighbor.successor.unwrap(), cid);
                 }
                 self.c_id = Some(S);
-                self.successor = Some(p_temp);
+                self.successor = Some(new_position);
                 self.send(&Packet::new_unicast(
                     self,
                     cid,
-                    Message::SendUpdatePredecessor {
-                        new_position: p_temp,
-                    },
+                    Message::SendUpdatePredecessor { new_position },
                 ));
                 return;
             } else if cid == E {
+                let new_position: CordId;
                 // neigh is the last node
                 if neighbor.successor == Some(S) {
-                    p_temp = (S + E) / 2;
+                    new_position = (S + E) / 2;
                 } else {
-                    p_temp = position(neighbor.predecessor.unwrap(), cid);
+                    new_position = position(neighbor.predecessor.unwrap(), cid);
                 }
                 self.c_id = Some(E);
-                self.predecessor = Some(p_temp);
+                self.predecessor = Some(new_position);
                 self.send(&Packet::new_unicast(
                     self,
                     cid,
-                    Message::SendUpdateSuccessor {
-                        new_position: p_temp,
-                    },
+                    Message::SendUpdateSuccessor { new_position },
                 ));
                 return;
             }
@@ -218,7 +208,7 @@ impl Vcp {
             }
         }
         if let Some((&cid, neigh)) = self.neighbors.iter().find(|n| !n.1.is_virtual) {
-            // find a neighbor without virtual_cid
+            // find a neighbor which is not virtual
             let new_virt = (cid + neigh.successor.unwrap()) / 2;
             let new_cid = (cid + new_virt) / 2;
             self.c_id = Some(new_cid);
@@ -258,35 +248,14 @@ impl Vcp {
                 }
             }
             Message::SendUpdatePredecessor { new_position } => {
-                let old_cid = self.c_id.clone();
+                let _old_cid = self.c_id.clone();
                 self.c_id = Some(new_position);
                 self.predecessor = packet.sender_cid;
-
-                // TODO is the recursive approach right?
-                /*if old_cid != Some(new_position) {
-                    if let Some(dst) = self.successor {
-                        self.send(&Packet::new_unicast(
-                            self,
-                            dst,
-                            Message::SendUpdatePredecessor { new_position: dst },
-                        ));
-                    }
-                }*/
             }
             Message::SendUpdateSuccessor { new_position } => {
-                let old_cid = self.c_id.clone();
+                let _old_cid = self.c_id.clone();
                 self.c_id = Some(new_position);
                 self.successor = packet.sender_cid;
-                /*
-                if old_cid != Some(new_position) {
-                    if let Some(dst) = self.predecessor {
-                        self.send(&Packet::new_unicast(
-                            self,
-                            dst,
-                            Message::SendUpdateSuccessor { new_position: dst },
-                        ));
-                    }
-                }*/
             }
             Message::CreateVirtualNode { virtual_position } => {
                 let mut new_vcp = Vcp::new(false);
@@ -299,7 +268,6 @@ impl Vcp {
     }
 
     fn send(&mut self, packet: &Packet) {
-        //println!("Sending {:?}", packet);
         self.outgoing_msgs.push(packet.clone());
     }
 
@@ -308,7 +276,7 @@ impl Vcp {
         self.ticks += 1;
         if self.c_id.is_none() {
             // request own position
-            if (self.ticks > 1) {
+            if self.ticks > 1 {
                 self.set_my_position();
             }
         } else {
@@ -364,7 +332,7 @@ impl Vcp {
         }
 
         if let Some(cid) = self.c_id {
-            for (&n, neigh) in self.neighbors.iter() {
+            for (&n, _neigh) in self.neighbors.iter() {
                 if n > cid {
                     succ = set_if_larger(&succ, n);
                 }
