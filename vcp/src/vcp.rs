@@ -1,10 +1,8 @@
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::{collections::BTreeMap, fmt};
 
-pub trait Communication {
-    fn broadcast(&mut self, p: &Packet);
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Message {
     Hello(NeighborInfo),
     SendUpdatePredecessor { new_position: CordId },
@@ -13,13 +11,13 @@ pub enum Message {
     Text(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Receiver {
     Broadcast,
     Unicast(CordId),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// A Packet that will be send over the air
 pub struct Packet {
     receiver: Receiver,
@@ -62,7 +60,7 @@ impl Packet {
 
 type CordId = u32;
 type NeighborMap = BTreeMap<CordId, NeighborInfo>;
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Serialize, Deserialize)]
 /// Packs information about all neighbors, that have to be remembered
 pub struct NeighborInfo {
     predecessor: Option<CordId>,
@@ -280,6 +278,7 @@ impl Vcp {
     }
 
     fn send(&mut self, packet: &Packet) {
+        println!("send{}", serde_json::to_string(packet).unwrap());
         self.outgoing_msgs.push(packet.clone());
     }
 

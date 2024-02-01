@@ -5,10 +5,15 @@
 // ignore unused functions
 #![allow(dead_code)]
 
+use ::vcp::vcp::Vcp;
 use esp_idf_svc::sys::system;
+use serde_json;
 
 use core::convert::TryInto;
+use std::cell::RefCell;
 use std::io::Read;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use esp_idf_svc::wifi::{AccessPointConfiguration, AuthMethod, ClientConfiguration, Configuration};
 
@@ -23,6 +28,7 @@ use esp_idf_svc::hal::cpu::Core;
 use esp_idf_svc::hal::{sys::EspError, task::thread::ThreadSpawnConfiguration};
 
 use log::info;
+use vcp::vcp;
 
 // const SSID: &str = env!("WIFI_SSID");
 // const PASSWORD: &str = env!("WIFI_PASS");
@@ -69,7 +75,6 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
             .unwrap(),
         sys_loop,
     )?;
-
     // let wifi_configuration: Configuration = Configuration::Client(ClientConfiguration {
     //     ssid: SSID.into(),
     //     bssid: None,
@@ -77,7 +82,6 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
     //     password: PASSWORD.into(),
     //     channel: None,
     // });
-
     let ap_conf = Configuration::AccessPoint(AccessPointConfiguration::default());
 
     wifi.set_configuration(&ap_conf)
@@ -120,9 +124,19 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
     .map_err(|e| e.panic())
     .unwrap();
 
+    // TODO: I dont have a clue if this works!!!! - Jonathan
+    let the_vcp = Arc::new(RwLock::new(Vcp::new(true))); // TODO: change the is_first
+    let the_vcp2 = Arc::clone(&the_vcp);
+
     let esp_now_recv_cb = move |src: &[u8], data: &[u8]| {
         log::info!("Data recv from {}, len {}", mac_to_string(src), data.len());
-        log::info!("Data: {}", std::str::from_utf8(data).unwrap());
+        // TODO: catch error
+        the_vcp
+            .write()
+            .unwrap()
+            .receive(&serde_json::from_str(std::str::from_utf8(data).unwrap()).unwrap());
+
+        //log::info!("Data: {}", std::str::from_utf8(data).unwrap());
     };
     esp_now.register_recv_cb(esp_now_recv_cb).unwrap();
 
@@ -131,11 +145,15 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
         .spawn(move || {
             let mut count = 0;
             loop {
-                let data = format!("Hello, World! Count: {}", count);
-                esp_now
-                    .send(BROADCAST, data.as_bytes())
-                    .map_err(|e| e.panic())
-                    .unwrap();
+                //let data = format!("Hello, World! Count: {}", count);
+                for m in the_vcp2.read().unwrap().outgoing_msgs.iter() {
+                    let data = serde_json::to_string(&m).unwrap();
+                    esp_now
+                        .send(BROADCAST, data.as_bytes())
+                        .map_err(|e| e.panic())
+                        .unwrap();
+                }
+                the_vcp2.write().unwrap().outgoing_msgs.clear();
                 count += 1;
                 log::info!("Data sent, count {}", count);
                 esp_idf_svc::hal::delay::Delay::new_default().delay_ms(1000);

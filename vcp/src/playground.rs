@@ -1,8 +1,5 @@
-use std::path::Path;
-
-use vcp;
-
 use crate::dummy::{save_to_png, VirtManager};
+use std::path::Path;
 
 pub struct Playground {
     pub mgr: VirtManager,

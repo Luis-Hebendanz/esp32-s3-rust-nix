@@ -7,17 +7,11 @@ use std::{
 
 use crate::vcp::*;
 use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex};
+
 /// Implementation for Virtual VCP Device
 pub struct VirtDevice {
     vcp: Vcp,
     position: (i32, i32),
-}
-
-impl Communication for VirtDevice {
-    fn broadcast(&mut self, _p: &Packet) {
-        // The virtual sending is handled in VirtManager
-        //self.vcp.outgoing_msgs.push(p.clone())
-    }
 }
 
 impl VirtDevice {
