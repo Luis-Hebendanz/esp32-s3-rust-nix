@@ -20,10 +20,10 @@ pub enum Receiver {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 /// A Packet that will be send over the air
 pub struct Packet {
-    receiver: Receiver,
-    sender_name: String,
-    sender_cid: Option<CordId>,
-    message: Message,
+    pub receiver: Receiver,
+    pub sender_name: String,
+    pub sender_cid: Option<CordId>,
+    pub message: Message,
 }
 
 impl Packet {

@@ -5,13 +5,14 @@
 // ignore unused functions
 #![allow(dead_code)]
 
-use ::vcp::vcp::Vcp;
+use ::vcp::vcp::{Packet, Vcp};
 use esp_idf_svc::sys::system;
 use serde_json;
 
 use core::convert::TryInto;
 use std::cell::RefCell;
 use std::io::Read;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
@@ -130,13 +131,11 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
 
     let esp_now_recv_cb = move |src: &[u8], data: &[u8]| {
         log::info!("Data recv from {}, len {}", mac_to_string(src), data.len());
-        // TODO: catch error
-        the_vcp
-            .write()
-            .unwrap()
-            .receive(&serde_json::from_str(std::str::from_utf8(data).unwrap()).unwrap());
+        let data_str = std::str::from_utf8(data).unwrap();
+        let data_json: Packet = serde_json::from_str(data_str).unwrap();
+        the_vcp.write().unwrap().receive(&data_json);
 
-        //log::info!("Data: {}", std::str::from_utf8(data).unwrap());
+        log::info!("Data: {:#?}", data_json);
     };
     esp_now.register_recv_cb(esp_now_recv_cb).unwrap();
 
@@ -145,17 +144,20 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
         .spawn(move || {
             let mut count = 0;
             loop {
-                //let data = format!("Hello, World! Count: {}", count);
                 for m in the_vcp2.read().unwrap().outgoing_msgs.iter() {
                     let data = serde_json::to_string(&m).unwrap();
                     esp_now
                         .send(BROADCAST, data.as_bytes())
                         .map_err(|e| e.panic())
                         .unwrap();
+                    log::info!("Data sent, count {}", count);
+                    count += 1;
                 }
-                the_vcp2.write().unwrap().outgoing_msgs.clear();
-                count += 1;
-                log::info!("Data sent, count {}", count);
+                {
+                    let mut lock = the_vcp2.write().unwrap();
+                    lock.outgoing_msgs.clear();
+                    lock.timer_call();
+                }
                 esp_idf_svc::hal::delay::Delay::new_default().delay_ms(1000);
             }
         })

@@ -1,9 +1,3 @@
-
-
-
-
-
-
 pub fn mac_to_string(mac: &[u8]) -> String {
     let mut mac_str = String::new();
     for i in 0..mac.len() {
