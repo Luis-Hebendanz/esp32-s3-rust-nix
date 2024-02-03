@@ -132,7 +132,7 @@ fn init_espnow() -> anyhow::Result<(), anyhow::Error> {
     let esp_now_recv_cb = move |src: &[u8], data: &[u8]| {
         log::info!("Data recv from {}, len {}", mac_to_string(src), data.len());
         let data_str = std::str::from_utf8(data).unwrap();
-        let data_json: Packet = serde_json::from_str(data_str).unwrap();
+        let data_json: Packet = serde_json::from_str(data_str).unwrap(); // TODO: handle error gracefullly
         the_vcp.write().unwrap().receive(&data_json);
 
         log::info!("Data: {:#?}", data_json);
