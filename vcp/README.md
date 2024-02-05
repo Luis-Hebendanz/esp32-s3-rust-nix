@@ -1,5 +1,15 @@
 # Generate Dot Graph
 
-`cargo run`
+## install
 
-`dot -Kfdp -n -Tpng out.dot > out.png`
+```
+apt install graphviz
+```
+
+# run code
+
+```
+cd vcp
+mkdir out/
+cargo run
+```
