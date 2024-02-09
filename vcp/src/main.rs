@@ -44,10 +44,10 @@ fn example1_send_data(play: &mut Playground) {
     play.mgr.devices.remove(0);
     play.ticks(10);
 
-    let from: u32 = 0;
-    let to: u32 = 1000;
-    let text: String = String::from("Hello, me");
-    play.send_text_data(from, to, text); //todo
+    play.send_text_data(0, 1000, String::from("Hello, Falko"));
+    play.send_text_data(1, 999, String::from("2 Hello, Sascha"));
+    play.send_text_data(999, 1, String::from("3 Hello, Sigrid"));
+    play.send_text_data(510, 563, String::from("4 Hello, Joana"));
     play.ticks(10);
 }
 

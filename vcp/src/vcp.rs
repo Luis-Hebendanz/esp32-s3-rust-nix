@@ -22,11 +22,11 @@ pub enum Receiver {
 #[derive(Clone, Debug)]
 /// A Packet that will be send over the air
 pub struct Packet {
-    pub receiver: Receiver, //TODO mach nicht public
+    receiver: Receiver,
     sender_name: String,
     sender_cid: Option<CordId>,
     final_cid: Option<CordId>,
-    pub message: Message, //todo mach nicht public
+    message: Message,
 }
 
 impl Packet {
@@ -58,12 +58,25 @@ impl Packet {
         }
     }
 
+    pub fn new_receiver(&self, new_dst: CordId) -> Packet{
+        let mut new_pkt = self.clone();
+        new_pkt.receiver = Receiver::Unicast((new_dst));
+        let new = new_pkt; //make it immutable
+        new
+    }
+
+    pub fn is_type_data(&self) -> bool{
+        if let Message::Text(ref l) = self.message {
+            return true;
+        }
+        return false;
+    }
+
     /// check if self is the receiver of dst. Or if dst in broadcast
     pub fn is_for(&self, dst: Option<CordId>) -> bool {
         if let Receiver::Unicast(l) = self.receiver {
             if Some(l) != dst {
                 // Unicast packet is not meant for this device
-                println!("ich bin: {}, ziel: {}", dst.expect("sollte sein"), l);
                 return false;
             }
         }
@@ -284,16 +297,14 @@ impl Vcp {
                 let self_cid = self.c_id.expect("Expected self.cid beeing set when text msg is send.");
                 let sender_cid = packet.sender_cid.expect("Expected sender_cis beeing set when text msg send.");
                 let next_receiver = self.calc_closesed_to_final(final_cid);
-                println!("Node with cid: {} received data text: {}", self_cid, msg);
                 if next_receiver == self_cid {
                     //store message
                     let _data = Data::new(msg.clone(), sender_cid);
                     self.data_storage.push(_data);
-                    println!("Node with cid: {} is final receiver of data text: {}", self_cid, msg);
+                    println!("Node with cid: {} is final receiver of data text: {}.", self_cid, msg);
                     
-
                 } else {
-                    println!("Node with cid: {} forwarding data text: _{}_ to node {}", self_cid, msg, next_receiver);
+                    println!("Node with cid: {} forwarding data to node {}.", self_cid, next_receiver);
                     //update packet info forward to closest neighbor to final
                     self.send(&Packet::new_unicast_data(
                         self,
@@ -337,15 +348,6 @@ impl Vcp {
 
     fn send(&mut self, packet: &Packet) {
         self.outgoing_msgs.push(packet.clone());
-        match packet.message {
-            Message::Text(ref msg) => {
-                println!("sending message of type text");
-            }
-            Message::Hello(neigh) => {}
-            Message::SendUpdatePredecessor { new_position } => {}
-            Message::SendUpdateSuccessor { new_position } => {}
-            Message::CreateVirtualNode { virtual_position } => {}
-        }
     }
 
     pub fn send_text_data(& mut self, final_cid: CordId, text: String,) {
@@ -355,7 +357,7 @@ impl Vcp {
 
 
         if next_receiver == self_cid {
-            println!("Abort sending data text. final receiver = sender");
+            println!("Abort sending data text. final receiver == sender");
 
         } else {
             self.send(&Packet::new_unicast_data(
@@ -364,7 +366,7 @@ impl Vcp {
                 final_cid,
                 Message::Text (text),
             ));
-            println!("Node with cid: {} starting send data", self_cid);
+            println!("Node with cid: {} starting send off data. First receiver is {}.", self_cid, next_receiver);
 
         }
     }
@@ -458,14 +460,12 @@ impl Vcp {
         
         //chek if some neighbor is closer
         for (&n, _neigh) in self.neighbors.iter() {
-            println!("nachbar: {}", n);
             let diff = n.abs_diff(final_cid);
             if diff < smallest_diff {
                 smallest_diff = diff;
                 closest = n;
             }
         }
-        println!("closest aka net node: {}", closest); //TODO: remove all prints
         closest
     }
 }

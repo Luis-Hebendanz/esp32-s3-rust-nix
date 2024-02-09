@@ -2,7 +2,7 @@ use std::{
     fs::{self, remove_file},
     io::Error,
     path::Path,
-    process::Command,
+    process::Command, sync::mpsc::Receiver,
 };
 
 use crate::vcp::*;
@@ -45,30 +45,33 @@ impl VirtManager {
         let mut sends: Vec<(usize, Packet, usize)> = Vec::new();
         for (s, ss) in self.devices.iter().enumerate() {
             for m in &ss.vcp.outgoing_msgs {
+
+                //check if receiver is virtual
+                if m.is_type_data() {
+                    for (index_real_node, real_node) in self.devices.iter().enumerate() {
+                        //go through all nodes. If receiver is found in virtuel nodes of one node, replace receiver with real node
+                        let ref virt_nodes_list = real_node.vcp.virtual_nodes;
+                        //search through virtual nodes in list
+                        for virt_node in virt_nodes_list.iter(){
+                            //is package for one of the virtual nodes?
+                            if m.is_for(virt_node.c_id) {
+                                //set real node as receiver instead of its virtual node by replacing packet with new one
+                                let real_node_cid = real_node.vcp.c_id.expect("Expected receiving node to have cid");
+                                let virt_node_cid = virt_node.c_id.expect("Expected receiving node to have cid");
+                                let r = m.new_receiver(real_node_cid);
+                                sends.push((s, r.clone(), index_real_node));
+                                println!("Receiver node {} is virtual. Sending to its real node {} instead.", virt_node_cid, real_node_cid);
+                            }
+                        }
+                    }
+                }
+
                 for (r, rr) in self.devices.iter().enumerate() {
                     if s == r {
-                        match m.message {
-                            Message::Text(ref msg) => {
-                                println!("not1");
-                            }
-                            Message::Hello(neigh) => {}
-                            Message::SendUpdatePredecessor { new_position } => {}
-                            Message::SendUpdateSuccessor { new_position } => {}
-                            Message::CreateVirtualNode { virtual_position } => {}
-                        }
                         continue;
                     }
 
                     if !m.is_for(rr.vcp.c_id) {
-                        match m.message {
-                            Message::Text(ref msg) => {
-                                println!("not2");
-                            }
-                            Message::Hello(neigh) => {}
-                            Message::SendUpdatePredecessor { new_position } => {}
-                            Message::SendUpdateSuccessor { new_position } => {}
-                            Message::CreateVirtualNode { virtual_position } => {}
-                        }
                         continue;
                     }
 
@@ -77,28 +80,9 @@ impl VirtManager {
                         as f64;
 
                     if dist_sqr > self.range.pow(2).into() {
-                        match m.message {
-                            Message::Text(ref msg) => {
-                                println!("not3");
-                            }
-                            Message::Hello(neigh) => {}
-                            Message::SendUpdatePredecessor { new_position } => {}
-                            Message::SendUpdateSuccessor { new_position } => {}
-                            Message::CreateVirtualNode { virtual_position } => {}
-                        }
-
                         continue;
                     }
                     sends.push((s, m.clone(), r));
-                    match m.message {
-                        Message::Text(ref msg) => {
-                            println!("handling message of type text");
-                        }
-                        Message::Hello(neigh) => {}
-                        Message::SendUpdatePredecessor { new_position } => {}
-                        Message::SendUpdateSuccessor { new_position } => {}
-                        Message::CreateVirtualNode { virtual_position } => {}
-                    }
                 }
             }
         }
