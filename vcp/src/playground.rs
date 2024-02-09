@@ -33,6 +33,12 @@ impl Playground {
         self.ticks(10);
     }
 
+    pub fn send_text_data(&mut self, from: u32, to: u32, text: String) {
+        self.mgr.send_text_data(from, to, text)
+
+
+    }
+
     pub fn new() -> Playground {
         Playground {
             mgr: VirtManager::new(),

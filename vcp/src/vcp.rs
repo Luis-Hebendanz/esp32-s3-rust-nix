@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt};
+use std::{clone, collections::BTreeMap, fmt};
 
 pub trait Communication {
     fn broadcast(&mut self, p: &Packet);
@@ -22,10 +22,11 @@ pub enum Receiver {
 #[derive(Clone, Debug)]
 /// A Packet that will be send over the air
 pub struct Packet {
-    receiver: Receiver,
+    pub receiver: Receiver, //TODO mach nicht public
     sender_name: String,
     sender_cid: Option<CordId>,
-    message: Message,
+    final_cid: Option<CordId>,
+    pub message: Message, //todo mach nicht public
 }
 
 impl Packet {
@@ -34,6 +35,7 @@ impl Packet {
             receiver: Receiver::Broadcast,
             sender_name: src.debug_name.clone(),
             sender_cid: src.c_id,
+            final_cid: None,
             message: mesage,
         }
     }
@@ -42,6 +44,16 @@ impl Packet {
             receiver: Receiver::Unicast(dst),
             sender_name: src.debug_name.clone(),
             sender_cid: src.c_id,
+            final_cid: None,
+            message: mesage,
+        }
+    }
+    pub fn new_unicast_data(src: &Vcp, dst: CordId, final_dst: CordId, mesage: Message) -> Self {
+        Packet {
+            receiver: Receiver::Unicast(dst),
+            sender_name: src.debug_name.clone(),
+            sender_cid: src.c_id,
+            final_cid: Some(final_dst),
             message: mesage,
         }
     }
@@ -51,10 +63,27 @@ impl Packet {
         if let Receiver::Unicast(l) = self.receiver {
             if Some(l) != dst {
                 // Unicast packet is not meant for this device
+                println!("ich bin: {}, ziel: {}", dst.expect("sollte sein"), l);
                 return false;
             }
         }
         return true;
+    }
+}
+
+#[derive(Clone, Debug)]
+/// A Packet that will be send over the air
+pub struct Data {
+    text: String,
+    sender_cid: CordId,
+}
+
+impl Data {
+    pub fn new(ttext: String, ssender_cid: CordId) -> Self {
+        Data {
+            text: ttext,
+            sender_cid: ssender_cid,
+        }
     }
 }
 
@@ -86,6 +115,8 @@ pub struct Vcp {
     ticks: u64,
     pub virtual_nodes: Vec<Vcp>,
     is_virtual: bool,
+
+    pub data_storage: Vec<Data>,
 }
 
 impl fmt::Display for Vcp {
@@ -129,6 +160,7 @@ impl Vcp {
             ticks: 0, // the clock of the node
             virtual_nodes: Vec::new(),
             is_virtual: false,
+            data_storage: Vec::new(),
         }
     }
 
@@ -246,7 +278,31 @@ impl Vcp {
         }
 
         match packet.message {
-            Message::Text(_) => todo!(),
+            Message::Text(ref msg) => {
+
+                let final_cid = packet.final_cid.expect("No final cid in text packet.");
+                let self_cid = self.c_id.expect("Expected self.cid beeing set when text msg is send.");
+                let sender_cid = packet.sender_cid.expect("Expected sender_cis beeing set when text msg send.");
+                let next_receiver = self.calc_closesed_to_final(final_cid);
+                println!("Node with cid: {} received data text: {}", self_cid, msg);
+                if next_receiver == self_cid {
+                    //store message
+                    let _data = Data::new(msg.clone(), sender_cid);
+                    self.data_storage.push(_data);
+                    println!("Node with cid: {} is final receiver of data text: {}", self_cid, msg);
+                    
+
+                } else {
+                    println!("Node with cid: {} forwarding data text: _{}_ to node {}", self_cid, msg, next_receiver);
+                    //update packet info forward to closest neighbor to final
+                    self.send(&Packet::new_unicast_data(
+                        self,
+                        next_receiver,
+                        final_cid,
+                        packet.message.clone(),
+                    ));
+                }
+            }
             Message::Hello(neigh) => {
                 let r = self.neighbors.insert(
                     packet.sender_cid.expect("Expected that CID is set"),
@@ -281,6 +337,36 @@ impl Vcp {
 
     fn send(&mut self, packet: &Packet) {
         self.outgoing_msgs.push(packet.clone());
+        match packet.message {
+            Message::Text(ref msg) => {
+                println!("sending message of type text");
+            }
+            Message::Hello(neigh) => {}
+            Message::SendUpdatePredecessor { new_position } => {}
+            Message::SendUpdateSuccessor { new_position } => {}
+            Message::CreateVirtualNode { virtual_position } => {}
+        }
+    }
+
+    pub fn send_text_data(& mut self, final_cid: CordId, text: String,) {
+        let next_receiver = self.calc_closesed_to_final(final_cid);
+        //check if 
+        let self_cid = self.c_id.expect("Expected self.cid beeing set when text msg is send.");
+
+
+        if next_receiver == self_cid {
+            println!("Abort sending data text. final receiver = sender");
+
+        } else {
+            self.send(&Packet::new_unicast_data(
+                self,
+                next_receiver,
+                final_cid,
+                Message::Text (text),
+            ));
+            println!("Node with cid: {} starting send data", self_cid);
+
+        }
     }
 
     /// Function that HAS to be called periodically
@@ -362,6 +448,25 @@ impl Vcp {
             }
         }
         (succ, pred)
+    }
+    fn calc_closesed_to_final(&self, final_cid: CordId) -> CordId {
+        let self_cid = self.c_id.expect("self.cid value empty.");
+        let mut closest = self_cid;
+
+        //calc diff btw. own id and final goal id
+        let mut smallest_diff = final_cid.abs_diff(self_cid); 
+        
+        //chek if some neighbor is closer
+        for (&n, _neigh) in self.neighbors.iter() {
+            println!("nachbar: {}", n);
+            let diff = n.abs_diff(final_cid);
+            if diff < smallest_diff {
+                smallest_diff = diff;
+                closest = n;
+            }
+        }
+        println!("closest aka net node: {}", closest); //TODO: remove all prints
+        closest
     }
 }
 

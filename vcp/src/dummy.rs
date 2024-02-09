@@ -47,10 +47,28 @@ impl VirtManager {
             for m in &ss.vcp.outgoing_msgs {
                 for (r, rr) in self.devices.iter().enumerate() {
                     if s == r {
+                        match m.message {
+                            Message::Text(ref msg) => {
+                                println!("not1");
+                            }
+                            Message::Hello(neigh) => {}
+                            Message::SendUpdatePredecessor { new_position } => {}
+                            Message::SendUpdateSuccessor { new_position } => {}
+                            Message::CreateVirtualNode { virtual_position } => {}
+                        }
                         continue;
                     }
 
                     if !m.is_for(rr.vcp.c_id) {
+                        match m.message {
+                            Message::Text(ref msg) => {
+                                println!("not2");
+                            }
+                            Message::Hello(neigh) => {}
+                            Message::SendUpdatePredecessor { new_position } => {}
+                            Message::SendUpdateSuccessor { new_position } => {}
+                            Message::CreateVirtualNode { virtual_position } => {}
+                        }
                         continue;
                     }
 
@@ -59,9 +77,28 @@ impl VirtManager {
                         as f64;
 
                     if dist_sqr > self.range.pow(2).into() {
+                        match m.message {
+                            Message::Text(ref msg) => {
+                                println!("not3");
+                            }
+                            Message::Hello(neigh) => {}
+                            Message::SendUpdatePredecessor { new_position } => {}
+                            Message::SendUpdateSuccessor { new_position } => {}
+                            Message::CreateVirtualNode { virtual_position } => {}
+                        }
+
                         continue;
                     }
                     sends.push((s, m.clone(), r));
+                    match m.message {
+                        Message::Text(ref msg) => {
+                            println!("handling message of type text");
+                        }
+                        Message::Hello(neigh) => {}
+                        Message::SendUpdatePredecessor { new_position } => {}
+                        Message::SendUpdateSuccessor { new_position } => {}
+                        Message::CreateVirtualNode { virtual_position } => {}
+                    }
                 }
             }
         }
@@ -89,6 +126,29 @@ impl VirtManager {
         }
         d.vcp.timer_call();
         self.devices.push(d);
+    }
+
+    pub fn send_text_data(& mut self, from: u32, to: u32, text: String,) {
+
+        //find start node that is closed to the "from" id
+
+        let mut best_sender_index: Option<usize> = None; 
+        let mut smallest_diff = 1000; 
+
+
+        for (s, ss) in self.devices.iter().enumerate() {
+            if let Some(cid) = ss.vcp.c_id{
+                let diff = cid.abs_diff(from);
+                if diff < smallest_diff {
+                    smallest_diff = diff;
+                    //if this node's cid is close to the "from", remember its index
+                    best_sender_index = Some(s);
+                }
+            }
+        }
+        //check if we found a sender and instruct the node to send
+        let index = best_sender_index.expect("Connot send, bc no sender exist");
+        self.devices[index].vcp.send_text_data(to, text);
     }
 
     pub fn new() -> Self {
