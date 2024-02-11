@@ -142,9 +142,8 @@ impl fmt::Display for Vcp {
         }
         if let Some(cid) = self.c_id {
             write!(f, "{}", cid)?;
-        } else {
         }
-        write!(f, "'{}'", self.debug_name)?;
+        //write!(f, "'{}'", self.debug_name)?;
         if !self.virtual_nodes.is_empty() {
             write!(f, "\nvirt{{")?;
             for virt in &self.virtual_nodes {
