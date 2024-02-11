@@ -9,12 +9,11 @@ use std::{
     io::Error,
     path::Path,
     process::Command,
-    sync::mpsc::Receiver,
 };
 
 use crate::{
     dummy::*,
-    vcp::{Message, Packet, Vcp},
+    vcp::{Data, Message, Packet, Vcp},
 };
 
 pub struct GraphViz {}
@@ -68,7 +67,12 @@ impl GraphViz {
 
             write!(&mut message_node, "label = \"Data: \n").unwrap();
             let mut count = 0;
-            for m in &dev.vcp.data_storage {
+            let mut datas: Vec<&Data> = Vec::new();
+            datas.extend(dev.vcp.data_storage.iter());
+            for virt in &dev.vcp.virtual_nodes {
+                datas.extend(virt.data_storage.iter());
+            }
+            for m in &datas {
                 count += 1;
                 write!(&mut message_node, "{}: {}\n", m.sender_cid, m.text,).unwrap();
             }
