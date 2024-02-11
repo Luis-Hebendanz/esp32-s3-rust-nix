@@ -30,6 +30,14 @@ impl Playground {
         self.ticks(10);
     }
 
+    pub fn send_text_data(&mut self, from: u32, to: u32, text: String) {
+        println!("\nNew data transmission order: From: {}, To: {}, Text: {}.", from, to, text);
+        self.mgr.send_text_data(from, to, text);
+        self.ticks(10);
+
+
+    }
+
     pub fn new() -> Playground {
         Playground {
             mgr: VirtManager::new(),

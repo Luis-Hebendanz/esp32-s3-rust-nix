@@ -2,7 +2,7 @@ use std::{
     fs::{self, remove_file},
     io::Error,
     path::Path,
-    process::Command,
+    process::Command, sync::mpsc::Receiver,
 };
 
 use crate::vcp::*;
@@ -39,6 +39,27 @@ impl VirtManager {
         let mut sends: Vec<(usize, Packet, usize)> = Vec::new();
         for (s, ss) in self.devices.iter().enumerate() {
             for m in &ss.vcp.outgoing_msgs {
+
+                //check if receiver is virtual
+                if m.is_type_data() {
+                    for (index_real_node, real_node) in self.devices.iter().enumerate() {
+                        //go through all nodes. If receiver is found in virtuel nodes of one node, replace receiver with real node
+                        let ref virt_nodes_list = real_node.vcp.virtual_nodes;
+                        //search through virtual nodes in list
+                        for virt_node in virt_nodes_list.iter(){
+                            //is package for one of the virtual nodes?
+                            if m.is_for(virt_node.c_id) {
+                                //set real node as receiver instead of its virtual node by replacing packet with new one
+                                let real_node_cid = real_node.vcp.c_id.expect("Expected receiving node to have cid");
+                                let virt_node_cid = virt_node.c_id.expect("Expected receiving node to have cid");
+                                let r = m.new_receiver(real_node_cid);
+                                sends.push((s, r.clone(), index_real_node));
+                                println!("Receiver node {} is virtual. Sending to its real node {} instead.", virt_node_cid, real_node_cid);
+                            }
+                        }
+                    }
+                }
+
                 for (r, rr) in self.devices.iter().enumerate() {
                     if s == r {
                         continue;
@@ -83,6 +104,29 @@ impl VirtManager {
         }
         d.vcp.timer_call();
         self.devices.push(d);
+    }
+
+    pub fn send_text_data(& mut self, from: u32, to: u32, text: String,) {
+
+        //find start node that is closed to the "from" id
+
+        let mut best_sender_index: Option<usize> = None; 
+        let mut smallest_diff = 1000; 
+
+
+        for (s, ss) in self.devices.iter().enumerate() {
+            if let Some(cid) = ss.vcp.c_id{
+                let diff = cid.abs_diff(from);
+                if diff < smallest_diff {
+                    smallest_diff = diff;
+                    //if this node's cid is close to the "from", remember its index
+                    best_sender_index = Some(s);
+                }
+            }
+        }
+        //check if we found a sender and instruct the node to send
+        let index = best_sender_index.expect("Connot send, bc no sender exist");
+        self.devices[index].vcp.send_text_data(to, text);
     }
 
     pub fn new() -> Self {

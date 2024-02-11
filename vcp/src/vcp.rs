@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::{collections::BTreeMap, fmt};
+use std::{clone, collections::BTreeMap, fmt};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Message {
@@ -23,6 +23,7 @@ pub struct Packet {
     pub receiver: Receiver,
     pub sender_name: String,
     pub sender_cid: Option<CordId>,
+    final_cid: Option<CordId>,
     pub message: Message,
 }
 
@@ -32,6 +33,7 @@ impl Packet {
             receiver: Receiver::Broadcast,
             sender_name: src.debug_name.clone(),
             sender_cid: src.c_id,
+            final_cid: None,
             message: mesage,
         }
     }
@@ -40,8 +42,32 @@ impl Packet {
             receiver: Receiver::Unicast(dst),
             sender_name: src.debug_name.clone(),
             sender_cid: src.c_id,
+            final_cid: None,
             message: mesage,
         }
+    }
+    pub fn new_unicast_data(src: &Vcp, dst: CordId, final_dst: CordId, mesage: Message) -> Self {
+        Packet {
+            receiver: Receiver::Unicast(dst),
+            sender_name: src.debug_name.clone(),
+            sender_cid: src.c_id,
+            final_cid: Some(final_dst),
+            message: mesage,
+        }
+    }
+
+    pub fn new_receiver(&self, new_dst: CordId) -> Packet {
+        let mut new_pkt = self.clone();
+        new_pkt.receiver = Receiver::Unicast((new_dst));
+        let new = new_pkt; //make it immutable
+        new
+    }
+
+    pub fn is_type_data(&self) -> bool {
+        if let Message::Text(ref l) = self.message {
+            return true;
+        }
+        return false;
     }
 
     /// check if self is the receiver of dst. Or if dst in broadcast
@@ -53,6 +79,22 @@ impl Packet {
             }
         }
         return true;
+    }
+}
+
+#[derive(Clone, Debug)]
+/// A Packet that will be send over the air
+pub struct Data {
+    text: String,
+    sender_cid: CordId,
+}
+
+impl Data {
+    pub fn new(ttext: String, ssender_cid: CordId) -> Self {
+        Data {
+            text: ttext,
+            sender_cid: ssender_cid,
+        }
     }
 }
 
@@ -84,6 +126,8 @@ pub struct Vcp {
     ticks: u64,
     pub virtual_nodes: Vec<Vcp>,
     is_virtual: bool,
+
+    pub data_storage: Vec<Data>,
 }
 
 impl fmt::Display for Vcp {
@@ -127,6 +171,7 @@ impl Vcp {
             ticks: 0, // the clock of the node
             virtual_nodes: Vec::new(),
             is_virtual: false,
+            data_storage: Vec::new(),
         }
     }
 
@@ -244,7 +289,37 @@ impl Vcp {
         }
 
         match packet.message {
-            Message::Text(_) => todo!(),
+            Message::Text(ref msg) => {
+                let final_cid = packet.final_cid.expect("No final cid in text packet.");
+                let self_cid = self
+                    .c_id
+                    .expect("Expected self.cid beeing set when text msg is send.");
+                let sender_cid = packet
+                    .sender_cid
+                    .expect("Expected sender_cis beeing set when text msg send.");
+                let next_receiver = self.calc_closesed_to_final(final_cid);
+                if next_receiver == self_cid {
+                    //store message
+                    let _data = Data::new(msg.clone(), sender_cid);
+                    self.data_storage.push(_data);
+                    println!(
+                        "Node with cid: {} is final receiver of data text: {}.",
+                        self_cid, msg
+                    );
+                } else {
+                    println!(
+                        "Node with cid: {} forwarding data to node {}.",
+                        self_cid, next_receiver
+                    );
+                    //update packet info forward to closest neighbor to final
+                    self.send(&Packet::new_unicast_data(
+                        self,
+                        next_receiver,
+                        final_cid,
+                        packet.message.clone(),
+                    ));
+                }
+            }
             Message::Hello(neigh) => {
                 let r = self.neighbors.insert(
                     packet.sender_cid.expect("Expected that CID is set"),
@@ -280,6 +355,29 @@ impl Vcp {
     fn send(&mut self, packet: &Packet) {
         println!("send{}", serde_json::to_string(packet).unwrap());
         self.outgoing_msgs.push(packet.clone());
+    }
+
+    pub fn send_text_data(&mut self, final_cid: CordId, text: String) {
+        let next_receiver = self.calc_closesed_to_final(final_cid);
+        //check if
+        let self_cid = self
+            .c_id
+            .expect("Expected self.cid beeing set when text msg is send.");
+
+        if next_receiver == self_cid {
+            println!("Abort sending data text. final receiver == sender");
+        } else {
+            self.send(&Packet::new_unicast_data(
+                self,
+                next_receiver,
+                final_cid,
+                Message::Text(text),
+            ));
+            println!(
+                "Node with cid: {} starting send off data. First receiver is {}.",
+                self_cid, next_receiver
+            );
+        }
     }
 
     /// Function that HAS to be called periodically
@@ -361,6 +459,23 @@ impl Vcp {
             }
         }
         (succ, pred)
+    }
+    fn calc_closesed_to_final(&self, final_cid: CordId) -> CordId {
+        let self_cid = self.c_id.expect("self.cid value empty.");
+        let mut closest = self_cid;
+
+        //calc diff btw. own id and final goal id
+        let mut smallest_diff = final_cid.abs_diff(self_cid);
+
+        //chek if some neighbor is closer
+        for (&n, _neigh) in self.neighbors.iter() {
+            let diff = n.abs_diff(final_cid);
+            if diff < smallest_diff {
+                smallest_diff = diff;
+                closest = n;
+            }
+        }
+        closest
     }
 }
 
