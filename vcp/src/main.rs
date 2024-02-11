@@ -46,6 +46,7 @@ fn example1_send_data(play: &mut Playground) {
     play.send_text_data(1, 999, String::from("2 Hello, Sascha"));
     play.send_text_data(999, 1, String::from("3 Hello, Sigrid"));
     play.send_text_data(510, 563, String::from("4 Hello, Joana"));
+    play.send_text_data(0, 625, String::from("5 Hello, All"));
     play.ticks(10);
 }
 
