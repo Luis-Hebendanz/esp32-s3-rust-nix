@@ -23,7 +23,7 @@ pub struct Packet {
     pub receiver: Receiver,
     pub sender_name: String,
     pub sender_cid: Option<CordId>,
-    final_cid: Option<CordId>,
+    pub final_cid: Option<CordId>,
     pub message: Message,
 }
 
@@ -85,8 +85,8 @@ impl Packet {
 #[derive(Clone, Debug)]
 /// A Packet that will be send over the air
 pub struct Data {
-    text: String,
-    sender_cid: CordId,
+    pub text: String,
+    pub sender_cid: CordId,
 }
 
 impl Data {
@@ -154,6 +154,9 @@ impl fmt::Display for Vcp {
         }
 
         write!(f, ":\np{} s{}", prev, succ)?;
+        // if self.data_storage.len() > 0 {
+        //     write!(f, "\n{:?}", self.data_storage)?;
+        // }
         Ok(())
     }
 }

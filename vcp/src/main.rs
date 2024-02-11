@@ -3,6 +3,7 @@ use rand::Rng;
 use std::fs;
 
 mod dummy;
+mod graphing;
 mod playground;
 mod vcp;
 
@@ -64,6 +65,5 @@ fn main() {
     //example_rnd(&mut play);
     //example1(&mut play);
     example1_send_data(&mut play);
-    let _ = fs::write("out.dot", play.mgr.generate_graph());
     assert!(play.mgr.find_inconsitency().is_none());
 }
