@@ -1,5 +1,10 @@
-use petgraph::{dot::Dot, graph::Graph, stable_graph::NodeIndex};
+use petgraph::{
+    dot::{Config, Dot},
+    graph::Graph,
+    stable_graph::NodeIndex,
+};
 use std::{
+    fmt::Write,
     fs::{self, remove_file},
     io::Error,
     path::Path,
@@ -7,10 +12,15 @@ use std::{
     sync::mpsc::Receiver,
 };
 
-use crate::{dummy::*, vcp::Vcp};
+use crate::{
+    dummy::*,
+    vcp::{Message, Packet, Vcp},
+};
 
 pub struct GraphViz {}
 
+const SCALE: f64 = 3.0;
+const DISPLAY_VIRTUAL_NODES: bool = false;
 impl GraphViz {
     pub fn save_to_png(dot_g: &String, path: &Path) -> Result<(), Error> {
         let dotfile = format!(
@@ -34,11 +44,105 @@ impl GraphViz {
         Ok(())
     }
 
+    /// Get GraphViz Nodes for displaying the data that is stored in a node
+    fn get_data_storage(virt: &VirtManager) -> String {
+        let mut res = String::new();
+        let mut i = 0;
+        for dev in &virt.devices {
+            let mut message_node = String::new();
+            write!(
+                &mut message_node,
+                r#"
+                data{i} -> {i}[style="rounded,dotted" dir=none]
+                data{i} 
+                [ 
+                    shape=box, 
+                    color=red
+                    _pos = "{},{}!",
+                    "#,
+                dev.position.0 as f64 / SCALE,
+                dev.position.1 as f64 / SCALE
+            )
+            .unwrap();
+            i += 1;
+
+            write!(&mut message_node, "label = \"Data: \n").unwrap();
+            let mut count = 0;
+            for m in &dev.vcp.data_storage {
+                count += 1;
+                write!(&mut message_node, "{}: {}\n", m.sender_cid, m.text,).unwrap();
+            }
+            write!(&mut message_node, "\"").unwrap();
+
+            write!(&mut message_node, "]").unwrap();
+            if count > 0 {
+                res += &message_node;
+            }
+        }
+
+        res
+    }
+
+    /// Get GraphViz Nodes for visualizing messages that are send
+    fn get_data_messages(virt: &VirtManager) -> String {
+        let mut res = String::new();
+        let mut i = 0;
+        for dev in &virt.devices {
+            let mut message_node = String::new();
+            write!(
+                &mut message_node,
+                r#"
+                msg{i} -> {i} [style="rounded,dotted" dir=none]
+                msg{i} 
+                [ 
+                    shape=box, 
+                    color=blue
+                    _pos = "{},{}!",
+                    "#,
+                dev.position.0 as f64 / SCALE,
+                dev.position.1 as f64 / SCALE
+            )
+            .unwrap();
+            i += 1;
+
+            let mut outgoing: Vec<&Packet> = Vec::new();
+
+            outgoing.extend(dev.vcp.outgoing_msgs.iter());
+            for virt in &dev.vcp.virtual_nodes {
+                if DISPLAY_VIRTUAL_NODES {}
+                outgoing.extend(virt.outgoing_msgs.iter());
+            }
+
+            write!(&mut message_node, "label = \"").unwrap();
+            let mut count = 0;
+            for m in outgoing {
+                match m.message {
+                    Message::Text(ref s) => {
+                        count += 1;
+                        write!(
+                            &mut message_node,
+                            "[{} -> {}] {s}\n",
+                            m.sender_cid.unwrap(),
+                            m.final_cid.unwrap()
+                        )
+                        .unwrap();
+                    }
+                    _ => {}
+                }
+            }
+            write!(&mut message_node, "\"").unwrap();
+
+            write!(&mut message_node, "]").unwrap();
+            if count > 0 {
+                res += &message_node;
+            }
+        }
+
+        res
+    }
     /// Generates a GraphViz Diagraph in .dot Filefromat
     pub fn generate_graph(virt: &VirtManager) -> String {
-        const SCALE: f64 = 3.0;
         /// Should Virtual Nodes be displayed in the graph or only included in the 'parrent' node.
-        const DISPLAY_VIRTUAL_NODES: bool = false;
         let mut g = Graph::<String, String>::new();
 
         // All Nodes and its Virtual Nodes, stored with Index and the Virtual Device Information
@@ -95,11 +199,13 @@ impl GraphViz {
         let dot_g = Dot::with_attr_getters(
             //Dot::with_config(
             &g,
-            &[],
+            &[Config::GraphContentOnly],
             &get_edge,
             &get_node,
         );
-
-        dot_g.to_string()
+        let mut extras = String::new();
+        extras += &GraphViz::get_data_messages(&virt);
+        extras += &GraphViz::get_data_storage(&virt);
+        format!("digraph {{\n {} \n{extras}\n }}", dot_g.to_string())
     }
 }
