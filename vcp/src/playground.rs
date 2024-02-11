@@ -1,4 +1,4 @@
-use crate::dummy::{save_to_png, VirtManager};
+use crate::{dummy::VirtManager, graphing::GraphViz};
 use std::path::Path;
 
 pub struct Playground {
@@ -17,9 +17,9 @@ impl Playground {
             }
 
             let name = format!("out/{:0>3}.png", self.age);
-            let gr = self.mgr.generate_graph();
+            let gr = GraphViz::generate_graph(&self.mgr);
             if Some(&gr) != self.old_graph.as_ref() {
-                save_to_png(&gr, Path::new(&name));
+                GraphViz::save_to_png(&gr, Path::new(&name));
             }
             self.old_graph = Some(gr);
         }
@@ -31,11 +31,12 @@ impl Playground {
     }
 
     pub fn send_text_data(&mut self, from: u32, to: u32, text: String) {
-        println!("\nNew data transmission order: From: {}, To: {}, Text: {}.", from, to, text);
+        println!(
+            "\nNew data transmission order: From: {}, To: {}, Text: {}.",
+            from, to, text
+        );
         self.mgr.send_text_data(from, to, text);
         self.ticks(10);
-
-
     }
 
     pub fn new() -> Playground {
