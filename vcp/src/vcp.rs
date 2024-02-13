@@ -202,7 +202,12 @@ impl Vcp {
                 } else if neighbor.successor == Some(E) {
                     new_position = (S + E) / 2;
                 } else {
-                    new_position = position(neighbor.successor.unwrap(), cid);
+                    if neighbor.successor != None{
+                        new_position = position(neighbor.successor.unwrap(), cid);
+                    }
+                    else{
+                        new_position = position(0, cid);
+                    }
                 }
                 self.c_id = Some(S);
                 self.successor = Some(new_position);
@@ -218,7 +223,12 @@ impl Vcp {
                 if neighbor.successor == Some(S) {
                     new_position = (S + E) / 2;
                 } else {
-                    new_position = position(neighbor.predecessor.unwrap(), cid);
+                    if neighbor.predecessor != None{
+                        new_position = position(neighbor.predecessor.unwrap(), cid);
+                    }
+                    else{
+                        new_position = position(0, cid);
+                    }
                 }
                 self.c_id = Some(E);
                 self.predecessor = Some(new_position);
@@ -265,7 +275,13 @@ impl Vcp {
         // Otherwise request to create a virtual node
         if let Some((&cid, neigh)) = self.neighbors.iter().find(|n| !n.1.is_virtual) {
             // find a neighbor which is not virtual
-            let new_virt = (cid + neigh.successor.unwrap()) / 2;
+            let new_virt: CordId;
+            if neigh.successor != None{
+                new_virt = (cid + neigh.successor.unwrap()) / 2;
+            }
+            else{
+                new_virt = (cid) / 2;
+            }
             let new_cid = (cid + new_virt) / 2;
             self.c_id = Some(new_cid);
             self.predecessor = Some(cid);
